@@ -65,9 +65,10 @@ int main()
 			{
 				sf::Uint8 id8;
 				serverPack >> id8;
+				myID = (unsigned short)id8;
 				serverPack >> myPlayer.position.x;
 				serverPack >> myPlayer.position.y;
-				std::cout << "Welcome, palyer with ID=" << myID<< std::endl;
+				std::cout << "Welcome, player with ID=" << myID << std::endl;
 				std::cout << "Your position is =" << (int)myPlayer.position.x << ":" << (int)myPlayer.position.y << std::endl;
 				confirmationRecieved = true;
 			}
