@@ -41,7 +41,7 @@ int main()
 	{
 		if (welcomeClock.getElapsedTime().asMilliseconds() >= 500)
 		{
-			std::cout << "Reenviant welcome packet\n";
+			std::cout << "Seding welcome packet again\n";
 			sf::Packet helloPack;
 			helloPack << Cabeceras::HELLO;
 			sendPacket(helloPack,0.5f);
@@ -67,8 +67,8 @@ int main()
 				serverPack >> id8;
 				serverPack >> myPlayer.position.x;
 				serverPack >> myPlayer.position.y;
-				std::cout << "Benvingut, jugador amb ID=" << myID<< std::endl;
-				std::cout << "La teva posicio es=" << (int)myPlayer.position.x << ":" << (int)myPlayer.position.y << std::endl;
+				std::cout << "Welcome, palyer with ID=" << myID<< std::endl;
+				std::cout << "Your position is =" << (int)myPlayer.position.x << ":" << (int)myPlayer.position.y << std::endl;
 				confirmationRecieved = true;
 			}
 			
@@ -271,7 +271,7 @@ void recieveFromServer()
 			break;
 		case NEW_PLAYER:
 			//Mostrar mensaje por pantalla?
-			std::cout << "se ha conectado un nuevo jugador";
+			std::cout << "New player has connected";
 			break;
 		case OK_POSITION:		//TODO-- enviar id jugador
 			sf::Uint32 newPosX, newPosY;
@@ -292,7 +292,7 @@ void recieveFromServer()
 	case sf::Socket::Disconnected:
 		break;
 	case sf::Socket::Error:
-		std::cout << "Error al recibir un paquete del servidor\n";
+		std::cout << "Error reciving packet from server\n";
 		break;
 	default:
 		break;
