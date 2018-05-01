@@ -5,6 +5,9 @@
 #include <iostream>
 #include <Constants.h>
 
+//Constants
+#define FAIL_RATE 0
+
 //Global vars
 unsigned short myID;
 PlayerInfo myPlayer;
@@ -13,63 +16,60 @@ sf::Clock gameClock;
 sf::Time deltaSeconds;
 sf::UdpSocket socket;
 
-
 //Fw declarations
+void sendPacket(sf::Packet packet, float failRate = 0);
 void sendInputMovement();
 void recieveFromServer();
 
+//TODO: demanar nom a l'usuari - mirar practica tcp
+
 int main()
 {
-	PlayerInfo playerInfo;
-
+	//Reset random seed and work in non-blocking mode
+	srand(time(NULL));
 	socket.setBlocking(false);
-
 
 	sf::Packet helloPack;
 	helloPack << Cabeceras::HELLO;
-	socket.send(helloPack, IPSERVER, PORTSERVER);
+	sendPacket(helloPack,1);
 
-	sf::Packet serverPack;
-	sf::IpAddress ipServer;
-	unsigned short portServer;
-	//recibir el welcome del servidor
-
-	//TODO: anar enviant HELLO's mentres el server no respongui
-
+	//Recibir el welcome del servidor
+	sf::Clock welcomeClock;
+	welcomeClock.restart();
 	bool confirmationRecieved = false;
 	while (!confirmationRecieved)
 	{
+		if (welcomeClock.getElapsedTime().asMilliseconds() >= 500)
+		{
+			std::cout << "Reenviant welcome packet\n";
+			sf::Packet helloPack;
+			helloPack << Cabeceras::HELLO;
+			sendPacket(helloPack,0.5f);
+			welcomeClock.restart();
+		}
+
+		sf::Packet serverPack;
+		sf::IpAddress ipServer;
+		unsigned short portServer;
 		sf::UdpSocket::Status status = socket.receive(serverPack,ipServer, portServer);
 
 		switch (status)
 		{
 		case sf::Socket::Done:
 			std::cout << "S'ha rebut el packet del servidor\n";
-			confirmationRecieved = true;
 
-			Cabeceras cab;
-			unsigned short cab_short;
-			/*serverPack >> cab_short;
-			cab = (Cabeceras)cab_short;
-			if (cab == Cabeceras::WELCOME)
-				std::cout << "La cabecera era correcta" << cab << std::endl;
-			else
-				std::cout << "La cabecera NO era correcta" << cab << std::endl;
-			sf::Int8 idRecibida;
-			serverPack >> idRecibida;
-			myID = (unsigned short)idRecibida;*/
+			sf::Uint8 cabecera8, id8;
+			serverPack >> cabecera8;
 
-			sf::Uint8 cab8, id8;
-			serverPack >> cab8;
-			serverPack >> id8;
-			serverPack >> myPlayer.position.x;
-			serverPack >> myPlayer.position.y;
-
-			
-			if ((Cabeceras)cab8 == Cabeceras::WELCOME)
+			if ((Cabeceras)cabecera8 == Cabeceras::WELCOME)
 			{
+				sf::Uint8 id8;
+				serverPack >> id8;
+				serverPack >> myPlayer.position.x;
+				serverPack >> myPlayer.position.y;
 				std::cout << "Benvingut, jugador amb ID=" << myID<< std::endl;
 				std::cout << "La teva posicio es=" << (int)myPlayer.position.x << ":" << (int)myPlayer.position.y << std::endl;
+				confirmationRecieved = true;
 			}
 			
 
@@ -197,6 +197,19 @@ int main()
 
 
 	return 0;
+}
+
+//Sends a packet but if failRate is greater than 0, there is a chance the packet won't be sent at all (for debug purposes)
+//'failRate' has to be in range [0..1] where 0 -> Will always send, and 1-> Will never send
+void sendPacket(sf::Packet packet, float failRate) {
+	float random = (rand() % 100) / 100.f;
+
+	if (failRate != 0 && random < failRate)	//fails to send
+	{
+		std::cout << "A packet could not be sent\n";
+	} else {
+		socket.send(packet, IPSERVER, PORTSERVER);
+	}
 }
 
 void sendInputMovement()
