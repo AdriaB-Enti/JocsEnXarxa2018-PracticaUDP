@@ -21,8 +21,9 @@ void sendPacket(sf::Packet packet, float failRate = 0);
 void sendInputMovement();
 void recieveFromServer();
 
-//TODO: demanar nom a l'usuari - mirar practica tcp
+bool inline isOficialServer(sf::IpAddress ip, unsigned short port) { return (ip.toString()==std::string(IPSERVER))&&(port==PORTSERVER);}
 
+//TODO: demanar nom a l'usuari - mirar practica tcp
 int main()
 {
 	//Reset random seed and work in non-blocking mode
@@ -31,20 +32,21 @@ int main()
 
 	sf::Packet helloPack;
 	helloPack << Cabeceras::HELLO;
-	sendPacket(helloPack,1);
+	sendPacket(helloPack,0);
 
-	//Recibir el welcome del servidor
+	//Recive welcome from server
 	sf::Clock welcomeClock;
 	welcomeClock.restart();
 	bool confirmationRecieved = false;
 	while (!confirmationRecieved)
 	{
+		//Send Hello packet if no welcome was recieved
 		if (welcomeClock.getElapsedTime().asMilliseconds() >= 500)
 		{
-			std::cout << "Seding welcome packet again\n";
+			std::cout << "Seding hello packet again\n";
 			sf::Packet helloPack;
 			helloPack << Cabeceras::HELLO;
-			sendPacket(helloPack,0.5f);
+			sendPacket(helloPack,0.f);
 			welcomeClock.restart();
 		}
 
@@ -53,26 +55,32 @@ int main()
 		unsigned short portServer;
 		sf::UdpSocket::Status status = socket.receive(serverPack,ipServer, portServer);
 
+
 		switch (status)
 		{
 		case sf::Socket::Done:
-			std::cout << "S'ha rebut el packet del servidor\n";
+			//std::cout << "Server confimation. ip: "<< (ipServer.toString()==std::string(IPSERVER)) <<"port "<< (portServer==PORTSERVER) << std::endl;
 
-			sf::Uint8 cabecera8, id8;
-			serverPack >> cabecera8;
-
-			if ((Cabeceras)cabecera8 == Cabeceras::WELCOME)
+			if (isOficialServer(ipServer,portServer))
 			{
-				sf::Uint8 id8;
-				serverPack >> id8;
-				myID = (unsigned short)id8;
-				serverPack >> myPlayer.position.x;
-				serverPack >> myPlayer.position.y;
-				std::cout << "Welcome, player with ID=" << myID << std::endl;
-				std::cout << "Your position is =" << (int)myPlayer.position.x << ":" << (int)myPlayer.position.y << std::endl;
-				confirmationRecieved = true;
+				std::cout << "S'ha rebut el packet del servidor\n";
+
+				sf::Uint8 cabecera8, id8;
+				serverPack >> cabecera8;
+
+				if ((Cabeceras)cabecera8 == Cabeceras::WELCOME)
+				{
+					sf::Uint8 id8;
+					serverPack >> id8;
+					myID = (unsigned short)id8;
+					serverPack >> myPlayer.position.x;
+					serverPack >> myPlayer.position.y;
+					std::cout << "Welcome, player with ID=" << myID << std::endl;
+					std::cout << "Your position is =" << (int)myPlayer.position.x << ":" << (int)myPlayer.position.y << std::endl;
+					confirmationRecieved = true;
+				}
+
 			}
-			
 
 			break;
 		case sf::Socket::NotReady:
@@ -113,7 +121,7 @@ int main()
 
 	//Create character sprite  -- Sprite y InfoPlayer tienen posiciones que se tendran que actualizar a la vez
 	characterSprite = sf::Sprite(characterTexture);
-	characterSprite.setPosition(myPlayer.position.x+10, myPlayer.position.y+50);
+	characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y); //X+10?
 
 	//sf::Clock gameClock;
 	gameClock.restart();
@@ -262,7 +270,6 @@ void recieveFromServer()
 	{
 	case sf::Socket::Done:
 	{
-		std::cout << "recieved" << std::endl;
 		int comandoInt;
 		serverPacket >> comandoInt;
 		Cabeceras comando = (Cabeceras)comandoInt;

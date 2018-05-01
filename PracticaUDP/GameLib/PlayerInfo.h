@@ -11,4 +11,5 @@ public:
 	std::string name;
 	sf::Vector2i position;
 	int lives;
+	unsigned short id;
 };

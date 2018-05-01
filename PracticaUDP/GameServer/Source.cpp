@@ -7,13 +7,12 @@
 class serverPlayer : public PlayerInfo {
 public:
 	serverPlayer();
-	serverPlayer( sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2i newPosition, short newID);
+	serverPlayer( sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2i newPosition, unsigned short newID);
 	sf::IpAddress ip;
 	unsigned short port;
-	short id;
 };
 serverPlayer::serverPlayer() {}
-serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2i newPosition, short newID) {
+serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2i newPosition, unsigned short newID) {
 	ip = newIp;
 	port = newPort;
 	name = newName;
@@ -21,9 +20,17 @@ serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::str
 	id = newID;
 }
 
+//Constants
+sf::Vector2i startPositions[4] = { 
+	sf::Vector2i(0,0), 
+	sf::Vector2i(TILESIZE*(N_TILES_WIDTH-1),0), 
+	sf::Vector2i(0,TILESIZE*(N_TILES_HEIGHT - 1)), 
+	sf::Vector2i(TILESIZE*(N_TILES_WIDTH - 1),
+		TILESIZE*(N_TILES_HEIGHT - 1)) 
+};
+
 //Global vars
 std::vector<serverPlayer> players;
-std::map<sf::IpAddress, serverPlayer> playersMap;
 unsigned short totalPlayers = 0;
 sf::UdpSocket socket;
 sf::Clock aknowledgeClock;
@@ -31,7 +38,8 @@ sf::Clock aknowledgeClock;
 //Fw declarations
 bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer &playerFound);
 bool checkMove(int x, int y);
-void sendPacket(sf::Packet packet, std::string ipClient, unsigned short portClient, float failRate = 0);
+void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portClient, float failRate = 0);
+void sendAllExcept(sf::Packet packet, unsigned short idClientExcluded, float failRate = 0);
 
 int main()
 {
@@ -40,9 +48,10 @@ int main()
 	aknowledgeClock.restart();
 	//serverPlayer provaPlayer = serverPlayer(sf::IpAddress("127.0.0.1"),50);
 	
-	//socket.setBlocking(false);
+	socket.setBlocking(false);
 	socket.bind(PORTSERVER);
 
+	//TODO: enviar el match_start quan estiguin tots els jugadors necessaris
 	while (true)
 	{
 		sf::IpAddress clientIp;
@@ -56,7 +65,6 @@ int main()
 		{
 
 			std::cout << "Package recieved" << std::endl;
-			std::cout << "From" << clientIp.toString() << std::endl;
 			sf::Uint8 comandoInt;
 			pack >> comandoInt;
 			Cabeceras comando = (Cabeceras)comandoInt;
@@ -65,41 +73,42 @@ int main()
 			{
 			case HELLO:
 			{
+				std::cout << "A client has connected (port: " << clientPort << ")\n";
 				//Check if the player was not saved
-				//if (playersMap.find(clientIp) == playersMap.end())
-				serverPlayer newPlayer;
-				if (!isPlayerSaved(clientIp,clientPort,newPlayer))
+				serverPlayer existingPlayer;
+				if (!isPlayerSaved(clientIp,clientPort,existingPlayer))
 				{
-					//enviar la posició aleatoria en el mapa
-
-					sf::Vector2i position = totalPlayers == 0 ? sf::Vector2i(9, 0) : sf::Vector2i(N_TILES_WIDTH*2, N_TILES_HEIGHT*2); //TODO: canviar
+					//Send welcome, id and position
+					sf::Vector2i position = startPositions[totalPlayers];
 					serverPlayer newPlayer = serverPlayer(clientIp, clientPort, (std::string)"", position, totalPlayers);
 					players.push_back(newPlayer);
-					//playersMap[clientIp] = newPlayer;
-
-					//totalPlayers = 15;
-					//sf::Int8 totalPlayersInt8 = (sf::Int8) totalPlayers;
 
 					sf::Packet welcomePack;
 					welcomePack << (sf::Uint8)Cabeceras::WELCOME;
 					welcomePack << (sf::Uint8) totalPlayers;
 					welcomePack << (sf::Uint32) position.x;
 					welcomePack << (sf::Uint32) position.y;
-					//socket.send(welcomePack, clientIp, clientPort);
-					sendPacket(welcomePack, clientIp.toString(), clientPort, 2.f);
+					sendPacket(welcomePack, clientIp, clientPort, 0.f);
+
+					if (totalPlayers != 0)
+					{
+						//SEND NEW PLAYER TO OTHERS - paquet critic?
+						//sendAllExcept()
+					}
+
 					totalPlayers++;
 				}
 				else
 				{
-					std::cout << "Client was already connected" << std::endl;
+					std::cout << "(client was already saved, sending welcome again)" << std::endl;
 					sf::Packet welcomePack;
 					welcomePack << (sf::Uint8)Cabeceras::WELCOME;
-					welcomePack << (sf::Uint8) newPlayer.id;
-					welcomePack << (sf::Uint32) newPlayer.position.x;
-					welcomePack << (sf::Uint32) newPlayer.position.y;
+					welcomePack << (sf::Uint8) existingPlayer.id;
+					welcomePack << (sf::Uint32) existingPlayer.position.x;
+					welcomePack << (sf::Uint32) existingPlayer.position.y;
 					socket.send(welcomePack, clientIp, clientPort);	//usar sendPacket()
+					sendPacket(welcomePack, clientIp, clientPort, 0.f);
 				}
-				std::cout << "A client has connected" << std::endl;
 			}
 
 				break;
@@ -163,7 +172,6 @@ int main()
 }
 
 
-//TODO: canviar el players per un map
 bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer &playerFound) {
 	for (int p = 0; p < players.size(); p++)
 	{
@@ -186,9 +194,10 @@ bool checkMove(int x, int y)
 	return false;
 }
 
+
 //Sends a packet but if failRate is greater than 0, there is a chance the packet won't be sent at all (for debug purposes)
 //'failRate' has to be in range [0..1] where 0 -> Will always send, and 1-> Will never send
-void sendPacket(sf::Packet packet, std::string ipClient, unsigned short portClient, float failRate) {
+void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portClient, float failRate) {
 	float random = (rand() % 100) / 100.f;
 
 	if (failRate != 0 && random < failRate)	//fails to send
@@ -199,4 +208,16 @@ void sendPacket(sf::Packet packet, std::string ipClient, unsigned short portClie
 		socket.send(packet, ipClient, portClient);
 	}
 }
+
+//Sends a packet to all players except the excluded one
+void sendAllExcept(sf::Packet packet, unsigned short idClientExcluded, float failRate) {
+	for each (serverPlayer aPlayer in players)
+	{
+		if (aPlayer.id != idClientExcluded)
+		{
+			sendPacket(packet, aPlayer.ip, aPlayer.port, failRate);
+		}
+	}
+}
+
 
