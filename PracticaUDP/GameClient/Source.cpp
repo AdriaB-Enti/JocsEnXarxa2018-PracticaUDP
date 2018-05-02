@@ -4,22 +4,22 @@
 #include <SFML\Network.hpp>
 #include <iostream>
 #include <Constants.h>
+#include "ClientPlayer.h"
 
 //Constants
 #define FAIL_RATE 0
 
 //tenir un client playerInfo? amb el sprite que toqui...
 
-
-
 //Global vars
 unsigned short myID;
-PlayerInfo myPlayer;
+PlayerInfo myPlayer;		//TODO: CANVIAR
 sf::Sprite characterSprite;
 sf::Clock gameClock;
 sf::Time deltaSeconds;
 sf::UdpSocket socket;
-std::vector<PlayerInfo> players;
+std::vector<ClientPlayer> players;
+//llista de packets crítics
 
 //Fw declarations
 void sendPacket(sf::Packet packet, float failRate = 0);
@@ -185,12 +185,15 @@ int main()
 		characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y);
 		window.draw(characterSprite);
 		//Draw rest of the players ------------------todo: tenir la classe custom de player info amb el sprite
-		for each (PlayerInfo player in players)
+		/*for each (PlayerInfo player in players)
 		{
 			characterSprite.setPosition(player.position.x, player.position.y);
 			window.draw(characterSprite);
+		}*/
+		for each (ClientPlayer cplayer in players)
+		{
+			window.draw(cplayer.characterSprite);
 		}
-
 
 
 		/*for (int i = 0; i < MAXPLAYERS; i++)
@@ -212,7 +215,7 @@ int main()
 
 	
 
-
+	
 
 
 
@@ -293,14 +296,18 @@ void recieveFromServer()
 			case NEW_PLAYER:
 			{
 				std::cout << "New player has connected!";
-				PlayerInfo newPlayer;
 
-				sf::Uint8 id8;
-				serverPacket >> id8;
-				newPlayer.id = (unsigned short)id8;
-				serverPacket >> newPlayer.position.x;
-				serverPacket >> newPlayer.position.y;
-				players.push_back(newPlayer);
+				ClientPlayer newcPlayer;
+				sf::Uint8 cid8;
+				serverPacket >> cid8;
+				newcPlayer.id = (unsigned short)cid8;
+				serverPacket >> newcPlayer.position.x;
+				serverPacket >> newcPlayer.position.y;
+				newcPlayer.characterSprite = characterSprite;
+				newcPlayer.characterSprite.setPosition(newcPlayer.position.x, newcPlayer.position.y);
+				players.push_back(newcPlayer);
+
+				//TODO------------------- respondre amb un acknowledge
 			}
 			break;
 			case OK_POSITION:		//TODO-- enviar id jugador
