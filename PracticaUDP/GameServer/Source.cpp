@@ -18,6 +18,8 @@ serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::str
 	name = newName;
 	position = newPosition;
 	id = newID;
+	//posar un map dels paquets critics
+	std::map<sf::Uint32, sf::Packet> unconfirmedPackets;
 }
 
 //Constants
@@ -34,6 +36,7 @@ std::vector<serverPlayer> players;
 unsigned short totalPlayers = 0;
 sf::UdpSocket socket;
 sf::Clock aknowledgeClock;
+sf::Uint32 idPacket = 0;
 
 //Fw declarations
 bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer &playerFound);
@@ -95,10 +98,13 @@ int main()
 					{
 						sf::Packet newPlayerPack;
 						newPlayerPack << (sf::Uint8)Cabeceras::NEW_PLAYER;
+						newPlayerPack << (sf::Uint32) idPacket;
 						newPlayerPack << (sf::Uint8) newPlayer.id;
 						newPlayerPack << (sf::Uint32) newPlayer.position.x;
 						newPlayerPack << (sf::Uint32) newPlayer.position.y;
+						//afegir a cada jugador el paquet critic - posar-ho dins la funcio? afegir un parametre per si es vol fer critic-afegir a les llistes d ecritics? - posar en els comentaris que es una funcio per critics
 						sendAllExcept(newPlayerPack, newPlayer.id, 0);
+						idPacket++;
 					}
 
 					totalPlayers++;

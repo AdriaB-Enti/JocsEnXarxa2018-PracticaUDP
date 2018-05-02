@@ -13,12 +13,13 @@
 
 //Global vars
 unsigned short myID;
-PlayerInfo myPlayer;		//TODO: CANVIAR
-sf::Sprite characterSprite;
+ClientPlayer myPlayer;
+//sf::Sprite characterSprite;
 sf::Clock gameClock;
 sf::Time deltaSeconds;
 sf::UdpSocket socket;
 std::vector<ClientPlayer> players;
+sf::Texture texture, characterTexture;
 //llista de packets crítics
 
 //Fw declarations
@@ -115,7 +116,6 @@ int main()
 	//Texturas, Sprites y fuentes
 	sf::RectangleShape mapShape(sf::Vector2f(TILESIZE*N_TILES_WIDTH, TILESIZE*N_TILES_HEIGHT));
 
-	sf::Texture texture, characterTexture;
 	if (!texture.loadFromFile("mapa2.png"))
 		std::cout << "Error al cargar la textura del mapa!\n";
 	if (!characterTexture.loadFromFile("personatgeTransp.png"))
@@ -125,8 +125,9 @@ int main()
 	mapShape.setTexture(&texture);
 
 	//Create character sprite  -- Sprite y InfoPlayer tienen posiciones que se tendran que actualizar a la vez
-	characterSprite = sf::Sprite(characterTexture);
-	characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y); //X+10?
+	//characterSprite = sf::Sprite(characterTexture);
+	myPlayer.characterSprite = sf::Sprite(characterTexture);
+	myPlayer.characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y); //X+10?
 
 	//sf::Clock gameClock;
 	gameClock.restart();
@@ -182,8 +183,8 @@ int main()
 
 		//Draw map and players
 		window.draw(mapShape);
-		characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y);
-		window.draw(characterSprite);
+		myPlayer.characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y);
+		window.draw(myPlayer.characterSprite);
 		//Draw rest of the players ------------------todo: tenir la classe custom de player info amb el sprite
 		/*for each (PlayerInfo player in players)
 		{
@@ -298,24 +299,31 @@ void recieveFromServer()
 				std::cout << "New player has connected!";
 
 				ClientPlayer newcPlayer;
-				sf::Uint8 cid8;
-				serverPacket >> cid8;
-				newcPlayer.id = (unsigned short)cid8;
+				sf::Uint32 idPacket;
+				sf::Uint8 id8;
+
+				serverPacket >> idPacket;
+				serverPacket >> id8;
+				newcPlayer.id = (unsigned short)id8;
 				serverPacket >> newcPlayer.position.x;
 				serverPacket >> newcPlayer.position.y;
-				newcPlayer.characterSprite = characterSprite;
+				
+				newcPlayer.characterSprite = sf::Sprite(characterTexture);
 				newcPlayer.characterSprite.setPosition(newcPlayer.position.x, newcPlayer.position.y);
 				players.push_back(newcPlayer);
 
+				std::cout << "idpack " << idPacket << std::endl;
 				//TODO------------------- respondre amb un acknowledge
+				sf::Packet akPacket;
+				//...
 			}
 			break;
 			case OK_POSITION:		//TODO-- enviar id jugador
 				sf::Uint32 newPosX, newPosY;
 				serverPacket >> newPosX;
 				serverPacket >> newPosY;
-				characterSprite.setPosition(newPosX, newPosY);
-
+				//characterSprite.setPosition(newPosX, newPosY);
+				myPlayer.moveTo(sf::Vector2i(newPosX, newPosY));
 				break;
 			default:
 				break;
