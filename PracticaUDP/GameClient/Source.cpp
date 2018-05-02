@@ -315,7 +315,9 @@ void recieveFromServer()
 				std::cout << "idpack " << idPacket << std::endl;
 				//TODO------------------- respondre amb un acknowledge
 				sf::Packet akPacket;
-				//...
+				akPacket << (sf::Uint8)Cabeceras::ACKNOWLEDGE;
+				akPacket << idPacket;
+				sendPacket(akPacket, 0);
 			}
 			break;
 			case OK_POSITION:		//TODO-- enviar id jugador

@@ -10,6 +10,7 @@ public:
 	serverPlayer( sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2i newPosition, unsigned short newID);
 	sf::IpAddress ip;
 	unsigned short port;
+	std::map<sf::Uint32, sf::Packet> unconfirmedPackets;
 };
 serverPlayer::serverPlayer() {}
 serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2i newPosition, unsigned short newID) {
@@ -19,7 +20,6 @@ serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::str
 	position = newPosition;
 	id = newID;
 	//posar un map dels paquets critics
-	std::map<sf::Uint32, sf::Packet> unconfirmedPackets;
 }
 
 //Constants
@@ -39,10 +39,10 @@ sf::Clock aknowledgeClock;
 sf::Uint32 idPacket = 0;
 
 //Fw declarations
-bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer &playerFound);
+bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer* &playerFound);
 bool checkMove(int x, int y);
 void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portClient, float failRate = 0);
-void sendAllExcept(sf::Packet packet, unsigned short idClientExcluded, float failRate = 0);
+void sendAllExcept(sf::Uint32 idPack, sf::Packet packet, unsigned short idClientExcluded, float failRate = 0);
 
 int main()
 {
@@ -78,7 +78,7 @@ int main()
 			{
 				std::cout << "A client has connected (port: " << clientPort << ")\n";
 				//Check if the player was not saved
-				serverPlayer existingPlayer;
+				serverPlayer* existingPlayer = nullptr;
 				if (!isPlayerSaved(clientIp,clientPort,existingPlayer))
 				{
 					//Send welcome, id and position
@@ -103,7 +103,8 @@ int main()
 						newPlayerPack << (sf::Uint32) newPlayer.position.x;
 						newPlayerPack << (sf::Uint32) newPlayer.position.y;
 						//afegir a cada jugador el paquet critic - posar-ho dins la funcio? afegir un parametre per si es vol fer critic-afegir a les llistes d ecritics? - posar en els comentaris que es una funcio per critics
-						sendAllExcept(newPlayerPack, newPlayer.id, 0);
+						sendAllExcept(idPacket, newPlayerPack, newPlayer.id, 0);
+						std::cout << "mida unconf. packets" << players.at(0).unconfirmedPackets.size() << "\n";
 						idPacket++;
 					}
 
@@ -114,9 +115,9 @@ int main()
 					std::cout << "(client was already saved, sending welcome again)" << std::endl;
 					sf::Packet welcomePack;
 					welcomePack << (sf::Uint8)Cabeceras::WELCOME;
-					welcomePack << (sf::Uint8) existingPlayer.id;
-					welcomePack << (sf::Uint32) existingPlayer.position.x;
-					welcomePack << (sf::Uint32) existingPlayer.position.y;
+					welcomePack << (sf::Uint8) existingPlayer->id;
+					welcomePack << (sf::Uint32) existingPlayer->position.x;
+					welcomePack << (sf::Uint32) existingPlayer->position.y;
 					socket.send(welcomePack, clientIp, clientPort);	//usar sendPacket()
 					sendPacket(welcomePack, clientIp, clientPort, 0.f);
 				}
@@ -126,6 +127,17 @@ int main()
 			case WELCOME:
 				break;
 			case ACKNOWLEDGE:
+			{
+				serverPlayer* akPlayer = nullptr;
+				if (isPlayerSaved(clientIp, clientPort, akPlayer)) {
+					sf::Uint32 akidPacket;
+					pack >> akidPacket;
+					if (akPlayer->unconfirmedPackets.find(akidPacket) != akPlayer->unconfirmedPackets.end()) {	//if packet is inside unconfirmed packets
+						akPlayer->unconfirmedPackets.erase(akPlayer->unconfirmedPackets.find(akidPacket));		//delete it
+						std::cout << "paquet esborrat!\n";
+					}
+				}
+			}
 				break;
 			case NEW_PLAYER:
 				break;
@@ -183,12 +195,12 @@ int main()
 }
 
 
-bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer &playerFound) {
+bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer* &playerFound) {
 	for (int p = 0; p < players.size(); p++)
 	{
 		if (players.at(p).ip == ip && players.at(p).port == port)
 		{
-			playerFound = players.at(p);
+			playerFound = &players.at(p);
 			return true;
 		}
 	}
@@ -221,13 +233,13 @@ void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portCl
 }
 
 //Sends a packet to all players except the excluded one
-void sendAllExcept(sf::Packet packet, unsigned short idClientExcluded, float failRate) {
+void sendAllExcept(sf::Uint32 idPack, sf::Packet packet, unsigned short idClientExcluded, float failRate) {
 	std::cout << "sending package to all\n";
-	for each (serverPlayer aPlayer in players)
-	{
+	for (auto &aPlayer : players) {
 		if (aPlayer.id != idClientExcluded)
 		{
 			std::cout << "sending to " << aPlayer.id << "\n";
+			aPlayer.unconfirmedPackets[idPack] = packet;
 			sendPacket(packet, aPlayer.ip, aPlayer.port, failRate);
 		}
 	}
