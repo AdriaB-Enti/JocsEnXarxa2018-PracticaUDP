@@ -106,6 +106,24 @@ int main()
 						sendAllExcept(idPacket, newPlayerPack, newPlayer.id, 0);
 						std::cout << "mida unconf. packets" << players.at(0).unconfirmedPackets.size() << "\n";
 						idPacket++;
+
+						//Send other players to that one
+						for (auto &aPlayer : players) {
+							if (aPlayer.id != totalPlayers)	//totalPlayers = id of new player
+							{
+								sf::Packet oldPlayerPack;
+								oldPlayerPack << (sf::Uint8)Cabeceras::NEW_PLAYER;
+								oldPlayerPack << (sf::Uint32) idPacket;
+								oldPlayerPack << (sf::Uint8) aPlayer.id;
+								oldPlayerPack << (sf::Uint32) aPlayer.position.x;
+								oldPlayerPack << (sf::Uint32) aPlayer.position.y;
+								std::cout << "sending to " << aPlayer.id << "\n";
+								newPlayer.unconfirmedPackets[idPacket] = oldPlayerPack;
+								sendPacket(oldPlayerPack, clientIp, clientPort, 0);
+								idPacket++;
+
+							}
+						}
 					}
 
 					totalPlayers++;
