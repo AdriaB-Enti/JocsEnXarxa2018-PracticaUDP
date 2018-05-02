@@ -8,6 +8,10 @@
 //Constants
 #define FAIL_RATE 0
 
+//tenir un client playerInfo? amb el sprite que toqui...
+
+
+
 //Global vars
 unsigned short myID;
 PlayerInfo myPlayer;
@@ -15,6 +19,7 @@ sf::Sprite characterSprite;
 sf::Clock gameClock;
 sf::Time deltaSeconds;
 sf::UdpSocket socket;
+std::vector<PlayerInfo> players;
 
 //Fw declarations
 void sendPacket(sf::Packet packet, float failRate = 0);
@@ -167,7 +172,7 @@ int main()
 			}
 		}
 
-		//recieveFromServer();
+		recieveFromServer();
 		sendInputMovement();
 		
 
@@ -175,11 +180,18 @@ int main()
 
 		window.clear();
 
-		//Dibujar el mapa i jugadores
+		//Draw map and players
 		window.draw(mapShape);
-		//Nuestro jugador
+		characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y);
 		window.draw(characterSprite);
-		
+		//Draw rest of the players ------------------todo: tenir la classe custom de player info amb el sprite
+		for each (PlayerInfo player in players)
+		{
+			characterSprite.setPosition(player.position.x, player.position.y);
+			window.draw(characterSprite);
+		}
+
+
 
 		/*for (int i = 0; i < MAXPLAYERS; i++)
 		{
@@ -264,32 +276,44 @@ void recieveFromServer()
 	sf::Packet serverPacket;
 	sf::IpAddress ip;
 	unsigned short port;
-	//Suponemos que solo recibiremos del servidor
 	sf::UdpSocket::Status status = socket.receive(serverPacket, ip,port);
 	switch (status)
 	{
 	case sf::Socket::Done:
 	{
-		int comandoInt;
-		serverPacket >> comandoInt;
-		Cabeceras comando = (Cabeceras)comandoInt;
-		switch (comando)
-		{
-		case ACKNOWLEDGE:
-			break;
-		case NEW_PLAYER:
-			//Mostrar mensaje por pantalla?
-			std::cout << "New player has connected";
-			break;
-		case OK_POSITION:		//TODO-- enviar id jugador
-			sf::Uint32 newPosX, newPosY;
-			serverPacket >> newPosX;
-			serverPacket >> newPosY;
-			characterSprite.setPosition(newPosX, newPosY);
+		std::cout << "package recieved\n";
+		if (isOficialServer(ip, port)) {
+			sf::Uint8 comandoInt;
+			serverPacket >> comandoInt;
+			Cabeceras comando = (Cabeceras)comandoInt;
+			switch (comando)
+			{
+			case ACKNOWLEDGE:
+				break;
+			case NEW_PLAYER:
+			{
+				std::cout << "New player has connected!";
+				PlayerInfo newPlayer;
 
+				sf::Uint8 id8;
+				serverPacket >> id8;
+				newPlayer.id = (unsigned short)id8;
+				serverPacket >> newPlayer.position.x;
+				serverPacket >> newPlayer.position.y;
+				players.push_back(newPlayer);
+			}
 			break;
-		default:
-			break;
+			case OK_POSITION:		//TODO-- enviar id jugador
+				sf::Uint32 newPosX, newPosY;
+				serverPacket >> newPosX;
+				serverPacket >> newPosY;
+				characterSprite.setPosition(newPosX, newPosY);
+
+				break;
+			default:
+				break;
+
+			}
 		}
 	}
 		break;

@@ -90,10 +90,15 @@ int main()
 					welcomePack << (sf::Uint32) position.y;
 					sendPacket(welcomePack, clientIp, clientPort, 0.f);
 
+					//Send that player to others (if there are more)
 					if (totalPlayers != 0)
 					{
-						//SEND NEW PLAYER TO OTHERS - paquet critic?
-						//sendAllExcept()
+						sf::Packet newPlayerPack;
+						newPlayerPack << (sf::Uint8)Cabeceras::NEW_PLAYER;
+						newPlayerPack << (sf::Uint8) newPlayer.id;
+						newPlayerPack << (sf::Uint32) newPlayer.position.x;
+						newPlayerPack << (sf::Uint32) newPlayer.position.y;
+						sendAllExcept(newPlayerPack, newPlayer.id, 0);
 					}
 
 					totalPlayers++;
@@ -211,10 +216,12 @@ void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portCl
 
 //Sends a packet to all players except the excluded one
 void sendAllExcept(sf::Packet packet, unsigned short idClientExcluded, float failRate) {
+	std::cout << "sending package to all\n";
 	for each (serverPlayer aPlayer in players)
 	{
 		if (aPlayer.id != idClientExcluded)
 		{
+			std::cout << "sending to " << aPlayer.id << "\n";
 			sendPacket(packet, aPlayer.ip, aPlayer.port, failRate);
 		}
 	}
