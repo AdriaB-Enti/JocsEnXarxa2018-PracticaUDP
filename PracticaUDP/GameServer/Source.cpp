@@ -210,24 +210,24 @@ int main()
 		//Send unconfirmed packets if no aknowledge was recieved
 		if (aknowledgeClock.getElapsedTime().asMilliseconds() >= 400)
 		{
-			for (auto &aPlayer : players) {
-				//Iterar el map i fer send
-				if (aPlayer.pingClock.getElapsedTime().asMilliseconds() > MAX_PING_MS)
+			for (auto aPlayer = players.begin(); aPlayer != players.end(); aPlayer++) {
+				//for (auto &aPlayer : players) {
+				if (aPlayer->pingClock.getElapsedTime().asMilliseconds() > MAX_PING_MS)
 				{
-					//TODO: DESCONECTAR
-					std::cout << "DESCONNECTAT PLAYER ID: " << aPlayer.id << "\n";
-					sendAllExcept(idPacket, disconnPack(idPacket), aPlayer.id, 0);
+					std::cout << "DESCONNECTAT PLAYER ID: " << aPlayer->id << "\n";
+					sendAllExcept(idPacket, disconnPack(idPacket), aPlayer->id, 0);
 					idPacket++;
-					//players.erase(aPlayer); --usar iterators
+					players.erase(aPlayer);
 				}
 				else
 				{
-					for (auto it : aPlayer.unconfirmedPackets)
+					//Iterar el map i fer send
+					for (auto it : aPlayer->unconfirmedPackets)
 					{
-						std::cout << "ReSending to " << aPlayer.id << "\n";
-						sendPacket(it.second, aPlayer.ip, aPlayer.port, 0);
+						std::cout << "ReSending to " << aPlayer->id << "\n";
+						sendPacket(it.second, aPlayer->ip, aPlayer->port, 0);
 					}
-					sendPacket(pingPack(), aPlayer.ip, aPlayer.port);
+					sendPacket(pingPack(), aPlayer->ip, aPlayer->port);
 				}
 			}
 			aknowledgeClock.restart();

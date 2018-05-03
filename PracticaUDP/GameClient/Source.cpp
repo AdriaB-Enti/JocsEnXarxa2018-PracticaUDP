@@ -26,6 +26,7 @@ void sendPacket(sf::Packet packet, float failRate = 0);
 void sendInputMovement();
 void recieveFromServer();
 bool isPlayerAlreadySaved();
+sf::Packet akPacket(sf::Uint8 idP) { sf::Packet p; p << Cabeceras::ACKNOWLEDGE; p << idP; return p; }
 
 bool inline isOficialServer(sf::IpAddress ip, unsigned short port) { return (ip.toString()==std::string(IPSERVER))&&(port==PORTSERVER);}
 
@@ -304,7 +305,7 @@ void recieveFromServer()
 
 				serverPacket >> idPacket;
 				serverPacket >> id8;
-				newcPlayer.id = (unsigned short)id8;
+				newcPlayer.id = (unsigned short) id8;
 				serverPacket >> newcPlayer.position.x;
 				serverPacket >> newcPlayer.position.y;
 				
@@ -315,7 +316,7 @@ void recieveFromServer()
 				std::cout << "idpack " << idPacket << std::endl;
 				//TODO------------------- respondre amb un acknowledge
 				sf::Packet akPacket;
-				akPacket << (sf::Uint8)Cabeceras::ACKNOWLEDGE;
+				akPacket << (sf::Uint8) Cabeceras::ACKNOWLEDGE;
 				akPacket << idPacket;
 				sendPacket(akPacket, 0);
 			}
@@ -326,14 +327,24 @@ void recieveFromServer()
 				serverPacket >> idPacket;
 
 				sf::Packet akPacket;
-				akPacket << (sf::Uint8)Cabeceras::ACKNOWLEDGE;
+				akPacket << (sf::Uint8) Cabeceras::ACKNOWLEDGE;
 				akPacket << idPacket;
 				sendPacket(akPacket, 0);
 			}
 				break;
 			case DISCONNECTED:
 			{
-
+				sf::Uint8 id8player, idPack;
+				serverPacket >> idPack;
+				serverPacket >> id8player;
+				for (auto i = players.begin(); i != players.end(); i++)
+				{
+					if (i->id == (unsigned short)id8player)
+					{
+						players.erase(i);
+					}
+				}
+				sendPacket(akPacket(idPack), 0);
 			}
 				break;
 			case OK_POSITION:		//TODO-- enviar id jugador
