@@ -162,28 +162,21 @@ int main()
 				break;
 			case NEW_PLAYER:
 				break;
-			case MOVE_LEFT:
+			case ACUM_MOVE:
 			{
-				std::cout << "player " << clientIp.toString() << " moving left\n";
+				sf::Uint32 acumIdPacket;
+				float movement_x, movement_y;
+				pack >> acumIdPacket;
+				pack >> movement_x;
+				pack >> movement_y;
+				std::cout << "movement ";
+				serverPlayer* akPlayer = nullptr;
+				if (isPlayerSaved(clientIp, clientPort, akPlayer)) {
+					std::cout << "from player " << akPlayer->id << " with x:" << movement_x << " y: " << movement_y << std::endl;
+				}
 
-				//hard coded al primer jugador. buscar el jugador pertinent
-				//players.front().position
-				//int newPosX = CHARACTER_SPEED
-				//checkMove(newPosX,
-				sf::Packet movementPacket;
-				movementPacket << (sf::Uint8)Cabeceras::OK_POSITION;
 
 			}
-
-				break;
-			case MOVE_RIGHT:
-				std::cout << "player " << clientIp.toString() << " moving right\n";
-				break;
-			case MOVE_UP:
-				std::cout << "player " << clientIp.toString() << " moving up\n";
-				break;
-			case MOVE_DOWN:
-				std::cout << "player " << clientIp.toString() << " moving down\n";
 				break;
 			default:
 				break;

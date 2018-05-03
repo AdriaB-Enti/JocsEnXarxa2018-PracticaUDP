@@ -20,7 +20,7 @@ sf::UdpSocket socket;
 std::vector<ClientPlayer> players;
 sf::Texture texture, characterTexture;
 float movement_x, movement_y;
-sf::Uint32 idMove = 0;
+sf::Uint32 idPack = 0;
 struct move_packet
 {
 	sf::Uint32 id;
@@ -116,9 +116,6 @@ int main()
 		//reenviar el packet
 	}
 
-	/*int n;
-	std::cin >> n;*/
-
 	//Creación de la ventana
 	sf::Vector2i screenDimensions(800, 900);
 	sf::RenderWindow window;
@@ -183,19 +180,19 @@ int main()
 		if (window.hasFocus())
 		{
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
-				movement_x -= deltaSeconds.asMilliseconds();
+				movement_x -= deltaTime;
 				myPlayer.translate(sf::Vector2f(-deltaTime * CHARACTER_SPEED, 0));
 			}
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) {
-				movement_x += deltaSeconds.asMilliseconds();
+				movement_x += deltaTime;
 				myPlayer.translate(sf::Vector2f(deltaTime *CHARACTER_SPEED, 0));
 			}
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) {
-				movement_y -= deltaSeconds.asMilliseconds();
+				movement_y -= deltaTime;
 				myPlayer.translate(sf::Vector2f(0, -deltaTime * CHARACTER_SPEED));
 			}
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) {
-				movement_y += deltaSeconds.asMilliseconds();
+				movement_y += deltaTime;
 				myPlayer.translate(sf::Vector2f(0, deltaTime*CHARACTER_SPEED));
 			}
 		}
@@ -214,7 +211,24 @@ int main()
 
 		if (acumMoveTime.getElapsedTime().asMilliseconds() > ACUM_MOVE_TIME)
 		{
+			sf::Packet acum_pack;
+			acum_pack << (sf::Uint8) Cabeceras::ACUM_MOVE;
+			acum_pack << (sf::Uint32) idPack;
+			acum_pack << movement_x;
+			acum_pack << movement_y;
 
+			move_packet acumMove;
+			acumMove.id = idPack;
+			acumMove.pack = acum_pack;
+			acum_move_packs.push_back(acumMove);
+			std::cout << "mida acums: " << acum_move_packs.size() << std::endl;
+
+			sendPacket(acum_pack,0);
+
+			movement_x = 0;
+			movement_y = 0;
+			idPack++;
+			acumMoveTime.restart();
 		}
 
 
@@ -243,44 +257,6 @@ void sendPacket(sf::Packet packet, float failRate) {
 		std::cout << "A packet could not be sent\n";
 	} else {
 		socket.send(packet, IPSERVER, PORTSERVER);
-	}
-}
-
-void sendInputMovement()
-{
-	float speed = 1.f; //Pixels / ms
-	//O se envia left, o se envia right, nunca los dos a la vez
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
-		//characterSprite.move(-speed*deltaSeconds.asMilliseconds(), 0);
-
-		//Enviar al servidor
-		sf::Packet movePack;
-		movePack << (sf::Uint8)Cabeceras::MOVE_LEFT;
-		socket.send(movePack, IPSERVER, PORTSERVER);
-
-	} else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) {
-		//characterSprite.move(speed*deltaSeconds.asMilliseconds(), 0);
-
-		//Enviar al servidor
-		sf::Packet movePack;
-		movePack << (sf::Uint8)Cabeceras::MOVE_RIGHT;
-		socket.send(movePack, IPSERVER, PORTSERVER);
-	}
-
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) {
-		//characterSprite.move(0, -speed*deltaSeconds.asMilliseconds());
-
-		//Enviar al servidor
-		sf::Packet movePack;
-		movePack << (sf::Uint8)Cabeceras::MOVE_UP;
-		socket.send(movePack, IPSERVER, PORTSERVER);
-	} else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) {
-		//characterSprite.move(0, speed*deltaSeconds.asMilliseconds());
-		
-		//Enviar al servidor
-		sf::Packet movePack;
-		movePack << (sf::Uint8)Cabeceras::MOVE_DOWN;
-		socket.send(movePack, IPSERVER, PORTSERVER);
 	}
 }
 
@@ -389,7 +365,7 @@ void recieveFromServer()
 	}
 }
 
-bool isPlayerAlreadySaved(unsigned short pyID) {	//TODO: CRIDAR QUAN rebem newplayer
+bool isPlayerAlreadySaved(unsigned short pyID) {
 	for (auto &nplayer : players)
 	{
 		if (nplayer.id == pyID)
