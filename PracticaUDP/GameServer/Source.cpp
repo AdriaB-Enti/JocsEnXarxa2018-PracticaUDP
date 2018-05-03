@@ -7,7 +7,7 @@
 class serverPlayer : public PlayerInfo {
 public:
 	serverPlayer();
-	serverPlayer( sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2i newPosition, unsigned short newID);
+	serverPlayer( sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2f newPosition, unsigned short newID);
 	sf::IpAddress ip;
 	unsigned short port;
 	sf::Clock pingClock;
@@ -16,7 +16,7 @@ public:
 serverPlayer::serverPlayer() {
 	pingClock.restart();
 }
-serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2i newPosition, unsigned short newID) {
+serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2f newPosition, unsigned short newID) {
 	ip = newIp;
 	port = newPort;
 	name = newName;
@@ -26,12 +26,13 @@ serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::str
 }
 
 //Constants
-#define MAX_PING_MS 2500
-sf::Vector2i startPositions[4] = { 
-	sf::Vector2i(0,0), 
-	sf::Vector2i(TILESIZE*(N_TILES_WIDTH-1),0), 
-	sf::Vector2i(0,TILESIZE*(N_TILES_HEIGHT - 1)), 
-	sf::Vector2i(TILESIZE*(N_TILES_WIDTH - 1),
+#define MAX_PING_MS 3000
+#define RESEND_TIME_MS 200
+sf::Vector2f startPositions[4] = { 
+	sf::Vector2f(0,0), 
+	sf::Vector2f(TILESIZE*(N_TILES_WIDTH-1),0), 
+	sf::Vector2f(0,TILESIZE*(N_TILES_HEIGHT - 1)), 
+	sf::Vector2f(TILESIZE*(N_TILES_WIDTH - 1),
 		TILESIZE*(N_TILES_HEIGHT - 1)) 
 };
 
@@ -71,8 +72,6 @@ int main()
 		{
 		case sf::Socket::Done:
 		{
-
-			std::cout << "Package recieved" << std::endl;
 			sf::Uint8 comandoInt;
 			pack >> comandoInt;
 			Cabeceras comando = (Cabeceras)comandoInt;
@@ -87,15 +86,15 @@ int main()
 				if (!isPlayerSaved(clientIp,clientPort,existingPlayer))
 				{
 					//Send welcome, id and position
-					sf::Vector2i position = startPositions[totalPlayers];
+					sf::Vector2f position = startPositions[totalPlayers];
 					serverPlayer newPlayer = serverPlayer(clientIp, clientPort, (std::string)"", position, totalPlayers);
 					players.push_back(newPlayer);
 
 					sf::Packet welcomePack;
 					welcomePack << (sf::Uint8)Cabeceras::WELCOME;
 					welcomePack << (sf::Uint8) totalPlayers;
-					welcomePack << (sf::Uint32) position.x;
-					welcomePack << (sf::Uint32) position.y;
+					welcomePack << (float) position.x;
+					welcomePack << (float) position.y;
 					sendPacket(welcomePack, clientIp, clientPort, 0.f);
 
 					//Send that player to others (if there are more)
@@ -105,8 +104,8 @@ int main()
 						newPlayerPack << (sf::Uint8)Cabeceras::NEW_PLAYER;
 						newPlayerPack << (sf::Uint32) idPacket;
 						newPlayerPack << (sf::Uint8) newPlayer.id;
-						newPlayerPack << (sf::Uint32) newPlayer.position.x;
-						newPlayerPack << (sf::Uint32) newPlayer.position.y;
+						newPlayerPack << (float) newPlayer.position.x;
+						newPlayerPack << (float) newPlayer.position.y;
 						//afegir a cada jugador el paquet critic - posar-ho dins la funcio? afegir un parametre per si es vol fer critic-afegir a les llistes d ecritics? - posar en els comentaris que es una funcio per critics
 						sendAllExcept(idPacket, newPlayerPack, newPlayer.id, 0);
 						std::cout << "mida unconf. packets" << players.at(0).unconfirmedPackets.size() << "\n";
@@ -120,8 +119,8 @@ int main()
 								oldPlayerPack << (sf::Uint8)Cabeceras::NEW_PLAYER;
 								oldPlayerPack << (sf::Uint32) idPacket;
 								oldPlayerPack << (sf::Uint8) aPlayer.id;
-								oldPlayerPack << (sf::Uint32) aPlayer.position.x;
-								oldPlayerPack << (sf::Uint32) aPlayer.position.y;
+								oldPlayerPack << (float) aPlayer.position.x;
+								oldPlayerPack << (float) aPlayer.position.y;
 								std::cout << "sending to " << aPlayer.id << "\n";
 								newPlayer.unconfirmedPackets[idPacket] = oldPlayerPack;
 								sendPacket(oldPlayerPack, clientIp, clientPort, 0);
@@ -138,8 +137,8 @@ int main()
 					sf::Packet welcomePack;
 					welcomePack << (sf::Uint8)Cabeceras::WELCOME;
 					welcomePack << (sf::Uint8) existingPlayer->id;
-					welcomePack << (sf::Uint32) existingPlayer->position.x;
-					welcomePack << (sf::Uint32) existingPlayer->position.y;
+					welcomePack << (float) existingPlayer->position.x;
+					welcomePack << (float) existingPlayer->position.y;
 					sendPacket(welcomePack, clientIp, clientPort, 0.f);
 				}
 			}
@@ -208,16 +207,17 @@ int main()
 		}
 
 		//Send unconfirmed packets if no aknowledge was recieved
-		if (aknowledgeClock.getElapsedTime().asMilliseconds() >= 400)
+		if (aknowledgeClock.getElapsedTime().asMilliseconds() >= RESEND_TIME_MS)
 		{
-			for (auto aPlayer = players.begin(); aPlayer != players.end(); aPlayer++) {
+			auto aPlayer = players.begin();
+			while ( aPlayer != players.end()) {
 				//for (auto &aPlayer : players) {
 				if (aPlayer->pingClock.getElapsedTime().asMilliseconds() > MAX_PING_MS)
 				{
 					std::cout << "DESCONNECTAT PLAYER ID: " << aPlayer->id << "\n";
 					sendAllExcept(idPacket, disconnPack(idPacket), aPlayer->id, 0);
 					idPacket++;
-					players.erase(aPlayer);
+					aPlayer = players.erase(aPlayer);
 				}
 				else
 				{
@@ -228,6 +228,8 @@ int main()
 						sendPacket(it.second, aPlayer->ip, aPlayer->port, 0);
 					}
 					sendPacket(pingPack(), aPlayer->ip, aPlayer->port);
+
+					++aPlayer;
 				}
 			}
 			aknowledgeClock.restart();

@@ -9,7 +9,7 @@ public:
 	PlayerInfo();
 	~PlayerInfo();
 	std::string name;
-	sf::Vector2i position;
+	sf::Vector2f position;
 	int lives;
 	unsigned short id;
 };

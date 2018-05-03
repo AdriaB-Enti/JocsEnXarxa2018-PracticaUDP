@@ -7,6 +7,7 @@ class ClientPlayer : public PlayerInfo {
 public:
 	sf::Sprite characterSprite;
 	ClientPlayer();
-	ClientPlayer(std::string _name, sf::Vector2i _position, unsigned short _id, sf::Sprite _sprite);
-	void moveTo(sf::Vector2i newPosition);
+	ClientPlayer(std::string _name, sf::Vector2f _position, unsigned short _id, sf::Sprite _sprite);
+	void moveTo(sf::Vector2f newPosition);
+	void translate(sf::Vector2f displacement);
 };

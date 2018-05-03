@@ -7,18 +7,26 @@
 
 //Constants
 #define FAIL_RATE 0
+#define ACUM_MOVE_TIME 100
 
 //tenir un client playerInfo? amb el sprite que toqui...
 
 //Global vars
 unsigned short myID;
 ClientPlayer myPlayer;
-//sf::Sprite characterSprite;
-sf::Clock gameClock;
+sf::Clock gameClock, acumMoveTime;
 sf::Time deltaSeconds;
 sf::UdpSocket socket;
 std::vector<ClientPlayer> players;
 sf::Texture texture, characterTexture;
+float movement_x, movement_y;
+sf::Uint32 idMove = 0;
+struct move_packet
+{
+	sf::Uint32 id;
+	sf::Packet pack;
+};
+std::vector<move_packet> acum_move_packs;
 //llista de packets crítics
 
 //Fw declarations
@@ -26,7 +34,10 @@ void sendPacket(sf::Packet packet, float failRate = 0);
 void sendInputMovement();
 void recieveFromServer();
 bool isPlayerAlreadySaved();
-sf::Packet akPacket(sf::Uint8 idP) { sf::Packet p; p << Cabeceras::ACKNOWLEDGE; p << idP; return p; }
+sf::Packet akPacket(sf::Uint32 idP) { 
+	sf::Packet p; p << (sf::Uint8) Cabeceras::ACKNOWLEDGE; p << idP;
+	std::cout << "package AK " << Cabeceras::ACKNOWLEDGE << std::endl;
+	return p; }
 
 bool inline isOficialServer(sf::IpAddress ip, unsigned short port) { return (ip.toString()==std::string(IPSERVER))&&(port==PORTSERVER);}
 
@@ -79,7 +90,7 @@ int main()
 				{
 					sf::Uint8 id8;
 					serverPack >> id8;
-					myID = (unsigned short)id8;
+					myID = (unsigned short) id8;
 					serverPack >> myPlayer.position.x;
 					serverPack >> myPlayer.position.y;
 					std::cout << "Welcome, player with ID=" << myID << std::endl;
@@ -112,7 +123,7 @@ int main()
 	//Creación de la ventana
 	sf::Vector2i screenDimensions(800, 900);
 	sf::RenderWindow window;
-	window.create(sf::VideoMode(screenDimensions.x, screenDimensions.y), "UDPGame");
+	window.create(sf::VideoMode(screenDimensions.x, screenDimensions.y), "UDPGame"+ std::to_string(myID));
 	
 	//Texturas, Sprites y fuentes
 	sf::RectangleShape mapShape(sf::Vector2f(TILESIZE*N_TILES_WIDTH, TILESIZE*N_TILES_HEIGHT));
@@ -132,10 +143,10 @@ int main()
 
 	//sf::Clock gameClock;
 	gameClock.restart();
+	acumMoveTime.restart();
 	while (window.isOpen())
 	{
 		deltaSeconds = gameClock.restart();
-
 		sf::Event event;
 		while (window.pollEvent(event))	//TODO: esborrar o netejar/organitzar
 		{
@@ -145,16 +156,23 @@ int main()
 			//Detectar eventos de teclado
 			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Escape))
 				window.close();
-			//Detectar eventos de ratón
-			if (event.type == sf::Event::MouseButtonPressed) {
-				std::cout << "Mouse Pressed at position: " << event.mouseButton.x << ":"
-					<< event.mouseButton.y << std::endl;
-				/*if (Game::currentTurn == miTurno)
-				{
-					sendMove(event.mouseButton.x, event.mouseButton.y);
-				}*/
-				//sf::Mouse::getPosition(window)
+			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Left)) {
+				movement_x -= deltaSeconds.asMilliseconds();
+				myPlayer.translate(sf::Vector2f(-deltaSeconds.asMilliseconds()*CHARACTER_SPEED,0));
 			}
+			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Right)) {
+				movement_x += deltaSeconds.asMilliseconds();
+				myPlayer.translate(sf::Vector2f(deltaSeconds.asMilliseconds()*CHARACTER_SPEED, 0));
+			}
+			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Up)) {
+				movement_y -= deltaSeconds.asMilliseconds();
+				myPlayer.translate(sf::Vector2f(0, -deltaSeconds.asMilliseconds()*CHARACTER_SPEED));
+			}
+			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Down)) {
+				movement_y += deltaSeconds.asMilliseconds();
+				myPlayer.translate(sf::Vector2f(0, deltaSeconds.asMilliseconds()*CHARACTER_SPEED));
+			}
+			//Detectar eventos de ratón
 			//Detectar si estamos escribiendo algo, enviar el texto si presionamos enter, borrar la ultima letra si apretamos Backspace
 			if (event.type == sf::Event::TextEntered)
 			{
@@ -175,7 +193,7 @@ int main()
 		}
 
 		recieveFromServer();
-		sendInputMovement();
+		//sendInputMovement();
 		
 
 
@@ -186,31 +204,19 @@ int main()
 		window.draw(mapShape);
 		myPlayer.characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y);
 		window.draw(myPlayer.characterSprite);
-		//Draw rest of the players ------------------todo: tenir la classe custom de player info amb el sprite
-		/*for each (PlayerInfo player in players)
-		{
-			characterSprite.setPosition(player.position.x, player.position.y);
-			window.draw(characterSprite);
-		}*/
+		//Draw rest of the players
 		for each (ClientPlayer cplayer in players)
 		{
 			window.draw(cplayer.characterSprite);
 		}
 
-
-		/*for (int i = 0; i < MAXPLAYERS; i++)
+		if (acumMoveTime.getElapsedTime().asMilliseconds() > ACUM_MOVE_TIME)
 		{
-			characterSprite.setPosition(sf::Vector2f(jugadores.at(i).position*TILESIZE));
-			if (jugadores.at(i).isDead)
-			{
-				characterSprite.rotate(-90);
-				characterSprite.move(sf::Vector2f(0, TILESIZE));
-			}
-			window.draw(characterSprite);
-			characterSprite.setRotation(0);
-			window.draw(jugadores.at(i).nameText);
-			window.draw(gameResult);
-		}*/
+
+		}
+
+
+
 
 		window.display();
 	}
@@ -286,7 +292,6 @@ void recieveFromServer()
 	{
 	case sf::Socket::Done:
 	{
-		std::cout << "package recieved\n";
 		if (isOficialServer(ip, port)) {
 			sf::Uint8 comandoInt;
 			serverPacket >> comandoInt;
@@ -313,7 +318,8 @@ void recieveFromServer()
 				newcPlayer.characterSprite.setPosition(newcPlayer.position.x, newcPlayer.position.y);
 				players.push_back(newcPlayer);
 
-				std::cout << "idpack " << idPacket << std::endl;
+				std::cout << "position x: " << newcPlayer.position.x << " position y: " << newcPlayer.position.y << std::endl;
+				//std::cout << "idpack " << idPacket << std::endl;
 				//TODO------------------- respondre amb un acknowledge
 				sf::Packet akPacket;
 				akPacket << (sf::Uint8) Cabeceras::ACKNOWLEDGE;
@@ -334,14 +340,18 @@ void recieveFromServer()
 				break;
 			case DISCONNECTED:
 			{
-				sf::Uint8 id8player, idPack;
+				sf::Uint32 idPack;
+				sf::Uint8 id8player;
 				serverPacket >> idPack;
 				serverPacket >> id8player;
+				std::cout << "player " << (unsigned short)id8player << " disconnected\n";
 				for (auto i = players.begin(); i != players.end(); i++)
 				{
 					if (i->id == (unsigned short)id8player)
 					{
+						std::cout << "player " << (unsigned short)id8player << " ESBORRAT\n";
 						players.erase(i);
+						break;
 					}
 				}
 				sendPacket(akPacket(idPack), 0);
@@ -352,7 +362,7 @@ void recieveFromServer()
 				serverPacket >> newPosX;
 				serverPacket >> newPosY;
 				//characterSprite.setPosition(newPosX, newPosY);
-				myPlayer.moveTo(sf::Vector2i(newPosX, newPosY));
+				myPlayer.moveTo(sf::Vector2f((float)newPosX, (float)newPosY));
 				break;
 			default:
 				break;

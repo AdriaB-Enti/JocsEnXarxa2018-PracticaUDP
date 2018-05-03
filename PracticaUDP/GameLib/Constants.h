@@ -10,7 +10,7 @@
 #define N_TILES_WIDTH 8
 #define N_TILES_HEIGHT 8
 //Game properties
-#define CHARACTER_SPEED 0.02f
+#define CHARACTER_SPEED 0.5f
 
 //Enums
 enum Cabeceras
@@ -22,6 +22,7 @@ enum Cabeceras
 	PING,
 	DISCONNECTED,
 	MATCH_START,
+	MOVE,
 	MOVE_LEFT,
 	MOVE_RIGHT,
 	MOVE_UP,
