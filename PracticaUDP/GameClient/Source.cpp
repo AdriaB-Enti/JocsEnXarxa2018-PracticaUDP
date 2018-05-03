@@ -1,5 +1,4 @@
 #pragma once
-#include <PlayerInfo.h>
 #include <SFML\Graphics.hpp>
 #include <SFML\Network.hpp>
 #include <iostream>
@@ -26,6 +25,7 @@ sf::Texture texture, characterTexture;
 void sendPacket(sf::Packet packet, float failRate = 0);
 void sendInputMovement();
 void recieveFromServer();
+bool isPlayerAlreadySaved();
 
 bool inline isOficialServer(sf::IpAddress ip, unsigned short port) { return (ip.toString()==std::string(IPSERVER))&&(port==PORTSERVER);}
 
@@ -320,6 +320,22 @@ void recieveFromServer()
 				sendPacket(akPacket, 0);
 			}
 			break;
+			case PING:
+			{
+				sf::Uint32 idPacket;
+				serverPacket >> idPacket;
+
+				sf::Packet akPacket;
+				akPacket << (sf::Uint8)Cabeceras::ACKNOWLEDGE;
+				akPacket << idPacket;
+				sendPacket(akPacket, 0);
+			}
+				break;
+			case DISCONNECTED:
+			{
+
+			}
+				break;
 			case OK_POSITION:		//TODO-- enviar id jugador
 				sf::Uint32 newPosX, newPosY;
 				serverPacket >> newPosX;
@@ -347,3 +363,15 @@ void recieveFromServer()
 		break;
 	}
 }
+
+bool isPlayerAlreadySaved(unsigned short pyID) {	//TODO: CRIDAR QUAN rebem newplayer
+	for (auto &nplayer : players)
+	{
+		if (nplayer.id == pyID)
+			return true;
+	}
+	return false;
+}
+
+
+

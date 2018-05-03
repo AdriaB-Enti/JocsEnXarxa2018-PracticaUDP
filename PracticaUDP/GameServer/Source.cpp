@@ -10,19 +10,23 @@ public:
 	serverPlayer( sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2i newPosition, unsigned short newID);
 	sf::IpAddress ip;
 	unsigned short port;
+	sf::Clock pingClock;
 	std::map<sf::Uint32, sf::Packet> unconfirmedPackets;
 };
-serverPlayer::serverPlayer() {}
+serverPlayer::serverPlayer() {
+	pingClock.restart();
+}
 serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::string newName, sf::Vector2i newPosition, unsigned short newID) {
 	ip = newIp;
 	port = newPort;
 	name = newName;
 	position = newPosition;
 	id = newID;
-	//posar un map dels paquets critics
+	pingClock.restart();
 }
 
 //Constants
+#define MAX_PING_MS 2500
 sf::Vector2i startPositions[4] = { 
 	sf::Vector2i(0,0), 
 	sf::Vector2i(TILESIZE*(N_TILES_WIDTH-1),0), 
@@ -43,7 +47,8 @@ bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer* &playerF
 bool checkMove(int x, int y);
 void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portClient, float failRate = 0);
 void sendAllExcept(sf::Uint32 idPack, sf::Packet packet, unsigned short idClientExcluded, float failRate = 0);
-
+sf::Packet pingPack() { sf::Packet p; p << (sf::Uint8)Cabeceras::PING; p << idPacket++; return p; }
+sf::Packet disconnPack(unsigned short idP) { sf::Packet p; p << (sf::Uint8)Cabeceras::DISCONNECTED; p << idPacket; p << idP; return p; }
 int main()
 {
 	//Reset random seed
@@ -121,7 +126,6 @@ int main()
 								newPlayer.unconfirmedPackets[idPacket] = oldPlayerPack;
 								sendPacket(oldPlayerPack, clientIp, clientPort, 0);
 								idPacket++;
-
 							}
 						}
 					}
@@ -136,7 +140,6 @@ int main()
 					welcomePack << (sf::Uint8) existingPlayer->id;
 					welcomePack << (sf::Uint32) existingPlayer->position.x;
 					welcomePack << (sf::Uint32) existingPlayer->position.y;
-					socket.send(welcomePack, clientIp, clientPort);	//usar sendPacket()
 					sendPacket(welcomePack, clientIp, clientPort, 0.f);
 				}
 			}
@@ -154,6 +157,7 @@ int main()
 						akPlayer->unconfirmedPackets.erase(akPlayer->unconfirmedPackets.find(akidPacket));		//delete it
 						std::cout << "paquet esborrat!\n";
 					}
+					akPlayer->pingClock.restart();
 				}
 			}
 				break;
@@ -203,11 +207,34 @@ int main()
 			break;
 		}
 
+		//Send unconfirmed packets if no aknowledge was recieved
+		if (aknowledgeClock.getElapsedTime().asMilliseconds() >= 400)
+		{
+			for (auto &aPlayer : players) {
+				//Iterar el map i fer send
+				if (aPlayer.pingClock.getElapsedTime().asMilliseconds() > MAX_PING_MS)
+				{
+					//TODO: DESCONECTAR
+					std::cout << "DESCONNECTAT PLAYER ID: " << aPlayer.id << "\n";
+					sendAllExcept(idPacket, disconnPack(idPacket), aPlayer.id, 0);
+					idPacket++;
+					//players.erase(aPlayer); --usar iterators
+				}
+				else
+				{
+					for (auto it : aPlayer.unconfirmedPackets)
+					{
+						std::cout << "ReSending to " << aPlayer.id << "\n";
+						sendPacket(it.second, aPlayer.ip, aPlayer.port, 0);
+					}
+					sendPacket(pingPack(), aPlayer.ip, aPlayer.port);
+				}
+			}
+			aknowledgeClock.restart();
+		}
+
+
 	}
-
-
-
-
 
 	return 0;
 }
@@ -250,7 +277,7 @@ void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portCl
 	}
 }
 
-//Sends a packet to all players except the excluded one
+//Sends a packet to all players except the excluded one. Saves to critical package map
 void sendAllExcept(sf::Uint32 idPack, sf::Packet packet, unsigned short idClientExcluded, float failRate) {
 	std::cout << "sending package to all\n";
 	for (auto &aPlayer : players) {
