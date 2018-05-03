@@ -25,6 +25,7 @@ struct move_packet
 {
 	sf::Uint32 id;
 	sf::Packet pack;
+	sf::Vector2f finalPos;
 };
 std::vector<move_packet> acum_move_packs;
 //llista de packets crítics
@@ -209,25 +210,29 @@ int main()
 			window.draw(cplayer.characterSprite);
 		}
 
-		if (acumMoveTime.getElapsedTime().asMilliseconds() > ACUM_MOVE_TIME)
+		if (acumMoveTime.getElapsedTime().asMilliseconds() > ACUM_MOVE_TIME)	//Send all acumulated movement (time moving on x and y)
 		{
-			sf::Packet acum_pack;
-			acum_pack << (sf::Uint8) Cabeceras::ACUM_MOVE;
-			acum_pack << (sf::Uint32) idPack;
-			acum_pack << movement_x;
-			acum_pack << movement_y;
+			if (movement_x != 0 || movement_y != 0)	//no need to send if we haven't moved
+			{
+				sf::Packet acum_pack;
+				acum_pack << (sf::Uint8) Cabeceras::ACUM_MOVE;
+				acum_pack << (sf::Uint32) idPack;
+				acum_pack << movement_x;
+				acum_pack << movement_y;
 
-			move_packet acumMove;
-			acumMove.id = idPack;
-			acumMove.pack = acum_pack;
-			acum_move_packs.push_back(acumMove);
-			std::cout << "mida acums: " << acum_move_packs.size() << std::endl;
+				move_packet acumMove;
+				acumMove.id = idPack;
+				acumMove.pack = acum_pack;
+				acumMove.finalPos = myPlayer.position;
+				acum_move_packs.push_back(acumMove);
+				std::cout << "mida acums: " << acum_move_packs.size() << std::endl;
 
-			sendPacket(acum_pack,0);
+				sendPacket(acum_pack,0);
 
-			movement_x = 0;
-			movement_y = 0;
-			idPack++;
+				movement_x = 0;
+				movement_y = 0;
+				idPack++;
+			}
 			acumMoveTime.restart();
 		}
 
@@ -337,12 +342,52 @@ void recieveFromServer()
 				sendPacket(akPacket(idPack), 0);
 			}
 				break;
-			case OK_POSITION:		//TODO-- enviar id jugador
-				sf::Uint32 newPosX, newPosY;
+			case OK_POSITION:
+			{
+				sf::Uint32 idMove;
+				sf::Uint8 idPlayerMoved;
+				float newPosX, newPosY;
+
+				serverPacket >> idMove;
+				serverPacket >> idPlayerMoved;
 				serverPacket >> newPosX;
 				serverPacket >> newPosY;
-				//characterSprite.setPosition(newPosX, newPosY);
-				myPlayer.moveTo(sf::Vector2f((float)newPosX, (float)newPosY));
+				
+				sf::Vector2f newPosition = sf::Vector2f((float)newPosX, (float)newPosY);
+
+				if (myID == (unsigned short)idPlayerMoved)		//it's for our player
+				{
+					for (auto movePack = acum_move_packs.begin(); movePack != acum_move_packs.end();) {
+						if (movePack->id < idMove)
+						{
+							movePack = acum_move_packs.erase(movePack);
+						}
+						if (movePack->id == idMove) {
+							if (movePack->finalPos != newPosition)
+							{
+								std::cout << "moving to " << newPosX << ":" << newPosY << std::endl;
+								myPlayer.moveTo(newPosition);			//TODO: fer-ho dins del for, només si resulta
+							}
+							movePack = acum_move_packs.erase(movePack);
+							//esborrar la resta de paquets si?
+						}
+						else {
+							movePack++;
+						}
+					}
+				}
+				else                      //for other players
+				{
+					for (auto &aPlayer : players)
+					{
+						if (aPlayer.id == (unsigned short)idPlayerMoved)
+						{
+							aPlayer.moveTo(newPosition);
+						}
+					}
+
+				}
+			}
 				break;
 			default:
 				break;

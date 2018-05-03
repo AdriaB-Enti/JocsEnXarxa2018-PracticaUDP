@@ -49,7 +49,7 @@ bool checkMove(int x, int y);
 void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portClient, float failRate = 0);
 void sendAllExcept(sf::Uint32 idPack, sf::Packet packet, unsigned short idClientExcluded, float failRate = 0);
 sf::Packet pingPack() { sf::Packet p; p << (sf::Uint8)Cabeceras::PING; p << idPacket++; return p; }
-sf::Packet disconnPack(unsigned short idP) { sf::Packet p; p << (sf::Uint8)Cabeceras::DISCONNECTED; p << idPacket; p << (sf::Uint8)idP; return p; }
+sf::Packet disconnPack(unsigned short idPlayer) { sf::Packet p; p << (sf::Uint8)Cabeceras::DISCONNECTED; p << idPacket; p << (sf::Uint8)idPlayer; return p; }
 int main()
 {
 	//Reset random seed
@@ -173,9 +173,27 @@ int main()
 				serverPlayer* akPlayer = nullptr;
 				if (isPlayerSaved(clientIp, clientPort, akPlayer)) {
 					std::cout << "from player " << akPlayer->id << " with x:" << movement_x << " y: " << movement_y << std::endl;
+					sf::Vector2f finalPos = akPlayer->position + CHARACTER_SPEED*sf::Vector2f(movement_x, movement_y);
+					if (finalPos.x < 0 || finalPos.x > TILESIZE*N_TILES_WIDTH ||
+						finalPos.y < 0 || finalPos.y > TILESIZE*N_TILES_HEIGHT)
+					{
+						std::cout << "Wrong movement!!\n";
+						finalPos = akPlayer->position;
+					}
+
+					akPlayer->position = finalPos;
+					sf::Packet ok_movePack;
+					ok_movePack << (sf::Uint8) Cabeceras::OK_POSITION;
+					ok_movePack << (sf::Uint32) acumIdPacket;
+					ok_movePack << (sf::Uint8) akPlayer->id;
+					ok_movePack << (float) finalPos.x;
+					ok_movePack << (float) finalPos.y;
+					
+					for (auto &aPlayer : players) {	//send to all
+						sendPacket(ok_movePack, aPlayer.ip, aPlayer.port, 0);
+					}
+
 				}
-
-
 			}
 				break;
 			default:
@@ -200,7 +218,7 @@ int main()
 		}
 
 		//Send unconfirmed packets if no aknowledge was recieved
-		if (aknowledgeClock.getElapsedTime().asMilliseconds() >= RESEND_TIME_MS)
+		if (aknowledgeClock.getElapsedTime().asMilliseconds() >= RESEND_TIME_MS)			//TODO: POSAR A DALT, ABANS DE TOT?
 		{
 			auto aPlayer = players.begin();
 			while ( aPlayer != players.end()) {
