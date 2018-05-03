@@ -33,7 +33,7 @@ std::vector<move_packet> acum_move_packs;
 void sendPacket(sf::Packet packet, float failRate = 0);
 void sendInputMovement();
 void recieveFromServer();
-bool isPlayerAlreadySaved();
+bool isPlayerAlreadySaved(unsigned short pyID);
 sf::Packet akPacket(sf::Uint32 idP) { 
 	sf::Packet p; p << (sf::Uint8) Cabeceras::ACKNOWLEDGE; p << idP;
 	std::cout << "package AK " << Cabeceras::ACKNOWLEDGE << std::endl;
@@ -77,8 +77,6 @@ int main()
 		switch (status)
 		{
 		case sf::Socket::Done:
-			//std::cout << "Server confimation. ip: "<< (ipServer.toString()==std::string(IPSERVER)) <<"port "<< (portServer==PORTSERVER) << std::endl;
-
 			if (isOficialServer(ipServer,portServer))
 			{
 				std::cout << "S'ha rebut el packet del servidor\n";
@@ -136,12 +134,9 @@ int main()
 		std::cout << "Error al cargar la fuente" << std::endl;*/
 	mapShape.setTexture(&texture);
 
-	//Create character sprite  -- Sprite y InfoPlayer tienen posiciones que se tendran que actualizar a la vez
-	//characterSprite = sf::Sprite(characterTexture);
 	myPlayer.characterSprite = sf::Sprite(characterTexture);
 	myPlayer.characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y); //X+10?
 
-	//sf::Clock gameClock;
 	gameClock.restart();
 	acumMoveTime.restart();
 	while (window.isOpen())
@@ -302,7 +297,7 @@ void recieveFromServer()
 				break;
 			case NEW_PLAYER:
 			{
-				std::cout << "New player has connected!";
+				std::cout << "New player has connected!";	//moure dintre del if
 
 				ClientPlayer newcPlayer;
 				sf::Uint32 idPacket;
@@ -314,13 +309,14 @@ void recieveFromServer()
 				serverPacket >> newcPlayer.position.x;
 				serverPacket >> newcPlayer.position.y;
 				
-				newcPlayer.characterSprite = sf::Sprite(characterTexture);
-				newcPlayer.characterSprite.setPosition(newcPlayer.position.x, newcPlayer.position.y);
-				players.push_back(newcPlayer);
+				if (!isPlayerAlreadySaved(newcPlayer.id)) { //Check if we already have that player
+					newcPlayer.characterSprite = sf::Sprite(characterTexture);
+					newcPlayer.characterSprite.setPosition(newcPlayer.position.x, newcPlayer.position.y);
+					players.push_back(newcPlayer);
 
-				std::cout << "position x: " << newcPlayer.position.x << " position y: " << newcPlayer.position.y << std::endl;
-				//std::cout << "idpack " << idPacket << std::endl;
-				//TODO------------------- respondre amb un acknowledge
+					std::cout << "id: " << newcPlayer.id << " position x: " << newcPlayer.position.x << " position y: " << newcPlayer.position.y << std::endl;
+					//std::cout << "idpack " << idPacket << std::endl;
+				}
 				sf::Packet akPacket;
 				akPacket << (sf::Uint8) Cabeceras::ACKNOWLEDGE;
 				akPacket << idPacket;
@@ -344,12 +340,13 @@ void recieveFromServer()
 				sf::Uint8 id8player;
 				serverPacket >> idPack;
 				serverPacket >> id8player;
-				std::cout << "player " << (unsigned short)id8player << " disconnected\n";
+				unsigned short idDisconnected = (unsigned short)id8player;
+				std::cout << "player " << idDisconnected << " disconnected\n";
 				for (auto i = players.begin(); i != players.end(); i++)
 				{
-					if (i->id == (unsigned short)id8player)
+					if (i->id == idDisconnected)
 					{
-						std::cout << "player " << (unsigned short)id8player << " ESBORRAT\n";
+						std::cout << "player " << idDisconnected << " ESBORRAT\n";
 						players.erase(i);
 						break;
 					}

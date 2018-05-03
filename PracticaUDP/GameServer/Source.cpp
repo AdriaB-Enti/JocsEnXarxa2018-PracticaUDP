@@ -49,7 +49,7 @@ bool checkMove(int x, int y);
 void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portClient, float failRate = 0);
 void sendAllExcept(sf::Uint32 idPack, sf::Packet packet, unsigned short idClientExcluded, float failRate = 0);
 sf::Packet pingPack() { sf::Packet p; p << (sf::Uint8)Cabeceras::PING; p << idPacket++; return p; }
-sf::Packet disconnPack(unsigned short idP) { sf::Packet p; p << (sf::Uint8)Cabeceras::DISCONNECTED; p << idPacket; p << idP; return p; }
+sf::Packet disconnPack(unsigned short idP) { sf::Packet p; p << (sf::Uint8)Cabeceras::DISCONNECTED; p << idPacket; p << (sf::Uint8)idP; return p; }
 int main()
 {
 	//Reset random seed
@@ -215,7 +215,13 @@ int main()
 				if (aPlayer->pingClock.getElapsedTime().asMilliseconds() > MAX_PING_MS)
 				{
 					std::cout << "DESCONNECTAT PLAYER ID: " << aPlayer->id << "\n";
-					sendAllExcept(idPacket, disconnPack(idPacket), aPlayer->id, 0);
+					/*sf::Packet p; 
+					p << (sf::Uint8)Cabeceras::DISCONNECTED; 
+					p << (sf::Uint32)idPacket;
+					p << (sf::Uint8)aPlayer->id;
+
+					sendAllExcept(idPacket, p, aPlayer->id, 0);*/
+					sendAllExcept(idPacket, disconnPack(aPlayer->id), aPlayer->id, 0);
 					idPacket++;
 					aPlayer = players.erase(aPlayer);
 				}
