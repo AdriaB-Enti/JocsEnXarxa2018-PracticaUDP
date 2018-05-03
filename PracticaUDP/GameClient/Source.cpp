@@ -44,6 +44,7 @@ bool inline isOficialServer(sf::IpAddress ip, unsigned short port) { return (ip.
 //TODO: demanar nom a l'usuari - mirar practica tcp
 int main()
 {
+	std::cout << "Char speed is " << CHARACTER_SPEED << std::endl;
 	//Reset random seed and work in non-blocking mode
 	srand(time(NULL));
 	socket.setBlocking(false);
@@ -122,6 +123,8 @@ int main()
 	sf::Vector2i screenDimensions(800, 900);
 	sf::RenderWindow window;
 	window.create(sf::VideoMode(screenDimensions.x, screenDimensions.y), "UDPGame"+ std::to_string(myID));
+	window.setFramerateLimit(60);
+	window.setKeyRepeatEnabled(false);
 	
 	//Texturas, Sprites y fuentes
 	sf::RectangleShape mapShape(sf::Vector2f(TILESIZE*N_TILES_WIDTH, TILESIZE*N_TILES_HEIGHT));
@@ -142,6 +145,11 @@ int main()
 	while (window.isOpen())
 	{
 		deltaSeconds = gameClock.restart();
+		float deltaTime = deltaSeconds.asSeconds();
+
+		recieveFromServer();
+		//sendInputMovement();
+		
 		sf::Event event;
 		while (window.pollEvent(event))	//TODO: esborrar o netejar/organitzar
 		{
@@ -149,25 +157,9 @@ int main()
 			if (event.type == sf::Event::Closed)
 				window.close();
 			//Detectar eventos de teclado
-			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Escape))
+			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Escape)){
 				window.close();
-			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Left)) {
-				movement_x -= deltaSeconds.asMilliseconds();
-				myPlayer.translate(sf::Vector2f(-deltaSeconds.asMilliseconds()*CHARACTER_SPEED,0));
 			}
-			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Right)) {
-				movement_x += deltaSeconds.asMilliseconds();
-				myPlayer.translate(sf::Vector2f(deltaSeconds.asMilliseconds()*CHARACTER_SPEED, 0));
-			}
-			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Up)) {
-				movement_y -= deltaSeconds.asMilliseconds();
-				myPlayer.translate(sf::Vector2f(0, -deltaSeconds.asMilliseconds()*CHARACTER_SPEED));
-			}
-			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Down)) {
-				movement_y += deltaSeconds.asMilliseconds();
-				myPlayer.translate(sf::Vector2f(0, deltaSeconds.asMilliseconds()*CHARACTER_SPEED));
-			}
-			//Detectar eventos de ratón
 			//Detectar si estamos escribiendo algo, enviar el texto si presionamos enter, borrar la ultima letra si apretamos Backspace
 			if (event.type == sf::Event::TextEntered)
 			{
@@ -187,11 +179,26 @@ int main()
 			}
 		}
 
-		recieveFromServer();
-		//sendInputMovement();
-		
-
-
+		//detect input only if window has focus
+		if (window.hasFocus())
+		{
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
+				movement_x -= deltaSeconds.asMilliseconds();
+				myPlayer.translate(sf::Vector2f(-deltaTime * CHARACTER_SPEED, 0));
+			}
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) {
+				movement_x += deltaSeconds.asMilliseconds();
+				myPlayer.translate(sf::Vector2f(deltaTime *CHARACTER_SPEED, 0));
+			}
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up)) {
+				movement_y -= deltaSeconds.asMilliseconds();
+				myPlayer.translate(sf::Vector2f(0, -deltaTime * CHARACTER_SPEED));
+			}
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down)) {
+				movement_y += deltaSeconds.asMilliseconds();
+				myPlayer.translate(sf::Vector2f(0, deltaTime*CHARACTER_SPEED));
+			}
+		}
 
 		window.clear();
 

@@ -219,7 +219,6 @@ int main()
 					p << (sf::Uint8)Cabeceras::DISCONNECTED; 
 					p << (sf::Uint32)idPacket;
 					p << (sf::Uint8)aPlayer->id;
-
 					sendAllExcept(idPacket, p, aPlayer->id, 0);*/
 					sendAllExcept(idPacket, disconnPack(aPlayer->id), aPlayer->id, 0);
 					idPacket++;

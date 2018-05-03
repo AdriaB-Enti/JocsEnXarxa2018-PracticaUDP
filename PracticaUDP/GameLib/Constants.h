@@ -10,7 +10,7 @@
 #define N_TILES_WIDTH 8
 #define N_TILES_HEIGHT 8
 //Game properties
-#define CHARACTER_SPEED 0.5f
+#define CHARACTER_SPEED 350.0f
 
 //Enums
 enum Cabeceras
