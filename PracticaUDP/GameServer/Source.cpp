@@ -26,7 +26,7 @@ serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::str
 }
 
 //Constants
-#define MAX_PING_MS 3000
+#define MAX_PING_MS 2500
 #define RESEND_TIME_MS 200
 sf::Vector2f startPositions[4] = { 
 	sf::Vector2f(0,0), 

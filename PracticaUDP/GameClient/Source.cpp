@@ -14,11 +14,12 @@
 //Global vars
 unsigned short myID;
 ClientPlayer myPlayer;
+std::vector<ClientPlayer> players;
 sf::Clock gameClock, acumMoveTime;
 sf::Time deltaSeconds;
 sf::UdpSocket socket;
-std::vector<ClientPlayer> players;
-sf::Texture texture, characterTexture;
+sf::Texture mapTexture, characterTexture;
+sf::Font font;
 float movement_x, movement_y;
 sf::Uint32 idPack = 0;
 struct move_packet
@@ -32,7 +33,6 @@ std::vector<move_packet> acum_move_packs;
 
 //Fw declarations
 void sendPacket(sf::Packet packet, float failRate = 0);
-void sendInputMovement();
 void recieveFromServer();
 bool isPlayerAlreadySaved(unsigned short pyID);
 sf::Packet akPacket(sf::Uint32 idP) { 
@@ -45,7 +45,14 @@ bool inline isOficialServer(sf::IpAddress ip, unsigned short port) { return (ip.
 //TODO: demanar nom a l'usuari - mirar practica tcp
 int main()
 {
-	std::cout << "Char speed is " << CHARACTER_SPEED << std::endl;
+	//Load textures and font
+	if (!mapTexture.loadFromFile("mapa2.png"))
+		std::cout << "Error al cargar la textura del mapa!\n";
+	if (!characterTexture.loadFromFile("personatgeTransp.png"))
+		std::cout << "Error al cargar la textura del personaje!\n";
+	if (!font.loadFromFile("courbd.ttf"))
+		std::cout << "Error al cargar la fuente" << std::endl;
+
 	//Reset random seed and work in non-blocking mode
 	srand(time(NULL));
 	socket.setBlocking(false);
@@ -89,12 +96,19 @@ int main()
 				if ((Cabeceras)cabecera8 == Cabeceras::WELCOME)
 				{
 					sf::Uint8 id8;
+					sf::Vector2f myPos;
 					serverPack >> id8;
 					myID = (unsigned short) id8;
-					serverPack >> myPlayer.position.x;
-					serverPack >> myPlayer.position.y;
+					serverPack >> myPos.x;
+					serverPack >> myPos.y;
 					std::cout << "Welcome, player with ID=" << myID << std::endl;
+
+					myPlayer.characterSprite = sf::Sprite(characterTexture);
+					myPlayer.nameText = sf::Text("player" + std::to_string(myID), font, 18);
+					myPlayer.nameText.setFillColor(sf::Color::Blue);
+					myPlayer.moveTo(myPos);
 					std::cout << "Your position is =" << (int)myPlayer.position.x << ":" << (int)myPlayer.position.y << std::endl;
+
 					confirmationRecieved = true;
 				}
 
@@ -113,8 +127,6 @@ int main()
 		default:
 			break;
 		}
-		//fer un sleep per si de cas?
-		//reenviar el packet
 	}
 
 	//Creación de la ventana
@@ -126,17 +138,7 @@ int main()
 	
 	//Texturas, Sprites y fuentes
 	sf::RectangleShape mapShape(sf::Vector2f(TILESIZE*N_TILES_WIDTH, TILESIZE*N_TILES_HEIGHT));
-
-	if (!texture.loadFromFile("mapa2.png"))
-		std::cout << "Error al cargar la textura del mapa!\n";
-	if (!characterTexture.loadFromFile("personatgeTransp.png"))
-		std::cout << "Error al cargar la textura del personaje!\n";
-	/*if (!font.loadFromFile("courbd.ttf"))
-		std::cout << "Error al cargar la fuente" << std::endl;*/
-	mapShape.setTexture(&texture);
-
-	myPlayer.characterSprite = sf::Sprite(characterTexture);
-	myPlayer.characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y); //X+10?
+	mapShape.setTexture(&mapTexture);
 
 	gameClock.restart();
 	acumMoveTime.restart();
@@ -198,17 +200,17 @@ int main()
 			}
 		}
 
-		window.clear();
-
 		//Draw map and players
+		window.clear();
 		window.draw(mapShape);
-		myPlayer.characterSprite.setPosition(myPlayer.position.x, myPlayer.position.y);
-		window.draw(myPlayer.characterSprite);
-		//Draw rest of the players
 		for each (ClientPlayer cplayer in players)
 		{
 			window.draw(cplayer.characterSprite);
+			window.draw(cplayer.nameText);
 		}
+		window.draw(myPlayer.characterSprite);
+		window.draw(myPlayer.nameText);
+
 
 		if (acumMoveTime.getElapsedTime().asMilliseconds() > ACUM_MOVE_TIME)	//Send all acumulated movement (time moving on x and y)
 		{
@@ -243,11 +245,6 @@ int main()
 	}
 
 	
-
-	
-
-
-
 
 	return 0;
 }
@@ -290,16 +287,20 @@ void recieveFromServer()
 				ClientPlayer newcPlayer;
 				sf::Uint32 idPacket;
 				sf::Uint8 id8;
+				sf::Vector2f newPlayerPos;
 
 				serverPacket >> idPacket;
 				serverPacket >> id8;
 				newcPlayer.id = (unsigned short) id8;
-				serverPacket >> newcPlayer.position.x;
-				serverPacket >> newcPlayer.position.y;
+				serverPacket >> newPlayerPos.x;
+				serverPacket >> newPlayerPos.y;
 				
 				if (!isPlayerAlreadySaved(newcPlayer.id)) { //Check if we already have that player
 					newcPlayer.characterSprite = sf::Sprite(characterTexture);
-					newcPlayer.characterSprite.setPosition(newcPlayer.position.x, newcPlayer.position.y);
+					//newcPlayer.characterSprite.setPosition(newcPlayer.position.x, newcPlayer.position.y);
+					newcPlayer.nameText = sf::Text("player" + std::to_string(newcPlayer.id), font, 18);
+					newcPlayer.nameText.setFillColor(sf::Color::Red);
+					newcPlayer.moveTo(newPlayerPos);
 					players.push_back(newcPlayer);
 
 					std::cout << "id: " << newcPlayer.id << " position x: " << newcPlayer.position.x << " position y: " << newcPlayer.position.y << std::endl;
@@ -363,9 +364,9 @@ void recieveFromServer()
 							movePack = acum_move_packs.erase(movePack);
 						}
 						if (movePack->id == idMove) {
-							if (movePack->finalPos != newPosition)
+							if ((movePack->finalPos.x != newPosition.x) || (movePack->finalPos.y != newPosition.y))
 							{
-								std::cout << "moving to " << newPosX << ":" << newPosY << std::endl;
+								std::cout << "DIFFERENT POS. X:" << movePack->finalPos.x <<"-" << newPosX << " Y:" << movePack->finalPos.y << "-" << newPosY << std::endl;
 								myPlayer.moveTo(newPosition);			//TODO: fer-ho dins del for, només si resulta
 							}
 							movePack = acum_move_packs.erase(movePack);
