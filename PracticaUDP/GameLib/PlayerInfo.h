@@ -10,6 +10,6 @@ public:
 	~PlayerInfo();
 	std::string name;
 	sf::Vector2f position;
-	int lives;
+	bool isAlive = true;
 	unsigned short id;
 };

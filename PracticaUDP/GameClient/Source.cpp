@@ -29,6 +29,11 @@ struct move_packet
 	sf::Vector2f finalPos;
 };
 std::vector<move_packet> acum_move_packs;
+struct bomb
+{
+	sf::Uint8 id;
+	sf::Sprite sprite;
+};
 //llista de packets crítics
 
 //Fw declarations
@@ -108,7 +113,9 @@ int main()
 					myPlayer.characterSprite = sf::Sprite(characterTexture);
 					myPlayer.characterSprite.setOrigin(50, 50);
 					myPlayer.nameText = sf::Text("player" + std::to_string(myID), font, 18);
-					myPlayer.nameText.setFillColor(sf::Color::Blue);
+					myPlayer.nameText.setFillColor(sf::Color::Yellow);
+					myPlayer.nameText.setOutlineColor(sf::Color::Blue);
+					myPlayer.nameText.setOutlineThickness(1);
 					myPlayer.moveTo(myPos);
 					std::cout << "Your position is =" << (int)myPlayer.position.x << ":" << (int)myPlayer.position.y << std::endl;
 
@@ -234,7 +241,7 @@ int main()
 				acumMove.pack = acum_pack;
 				acumMove.finalPos = myPlayer.position;
 				acum_move_packs.push_back(acumMove);
-				std::cout << "mida acums: " << acum_move_packs.size() << std::endl;
+				//std::cout << "mida acums: " << acum_move_packs.size() << std::endl;
 
 				sendPacket(acum_pack,0);
 
@@ -305,9 +312,10 @@ void recieveFromServer()
 				if (!isPlayerAlreadySaved(newcPlayer.id)) { //Check if we already have that player
 					newcPlayer.characterSprite = sf::Sprite(characterTexture);
 					newcPlayer.characterSprite.setOrigin(50, 50);
-					//newcPlayer.characterSprite.setPosition(newcPlayer.position.x, newcPlayer.position.y);
 					newcPlayer.nameText = sf::Text("player" + std::to_string(newcPlayer.id), font, 18);
 					newcPlayer.nameText.setFillColor(sf::Color::Red);
+					newcPlayer.nameText.setOutlineColor(sf::Color::Yellow);
+					newcPlayer.nameText.setOutlineThickness(1);
 					newcPlayer.moveTo(newPlayerPos);
 					players.push_back(newcPlayer);
 
@@ -371,14 +379,15 @@ void recieveFromServer()
 						{
 							movePack = acum_move_packs.erase(movePack);
 						}
+						const float maxDiff = 0.1f;	//para evitar pequeños errores
 						if (movePack->id == idMove) {
-							if ((movePack->finalPos.x != newPosition.x) || (movePack->finalPos.y != newPosition.y))
+							if (std::abs(movePack->finalPos.x - newPosition.x) > maxDiff || std::abs(movePack->finalPos.y - newPosition.y) > maxDiff)
 							{
-								//std::cout << "DIFFERENT POS. X:" << movePack->finalPos.x <<"-" << newPosX << " Y:" << movePack->finalPos.y << "-" << newPosY << std::endl;
+								std::cout << "DIFFERENT POS. X:" << movePack->finalPos.x <<"-" << newPosX << " Y:" << movePack->finalPos.y << "-" << newPosY << std::endl;
 								myPlayer.moveTo(newPosition);			//TODO: fer-ho dins del for, només si resulta
 							}
 							movePack = acum_move_packs.erase(movePack);
-							//esborrar la resta de paquets si?
+							//esborrar la resta de paquets si?--------------------------------------
 						}
 						else {
 							movePack++;
