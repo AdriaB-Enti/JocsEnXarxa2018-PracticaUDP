@@ -374,7 +374,7 @@ void recieveFromServer()
 						if (movePack->id == idMove) {
 							if ((movePack->finalPos.x != newPosition.x) || (movePack->finalPos.y != newPosition.y))
 							{
-								std::cout << "DIFFERENT POS. X:" << movePack->finalPos.x <<"-" << newPosX << " Y:" << movePack->finalPos.y << "-" << newPosY << std::endl;
+								//std::cout << "DIFFERENT POS. X:" << movePack->finalPos.x <<"-" << newPosX << " Y:" << movePack->finalPos.y << "-" << newPosY << std::endl;
 								myPlayer.moveTo(newPosition);			//TODO: fer-ho dins del for, només si resulta
 							}
 							movePack = acum_move_packs.erase(movePack);
@@ -391,6 +391,7 @@ void recieveFromServer()
 					{
 						if (aPlayer.id == (unsigned short)idPlayerMoved)
 						{
+							//std::cout << "dreta: " << (newPosition.x - aPlayer.position.x > 0);
 							aPlayer.moveTo(newPosition);
 						}
 					}

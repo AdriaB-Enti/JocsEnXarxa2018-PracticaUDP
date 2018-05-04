@@ -26,11 +26,11 @@ serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::str
 }
 
 //Constants
-#define MAX_PING_MS 2500
+#define MAX_PING_MS 3000
 #define RESEND_TIME_MS 200
 sf::Vector2f startPositions[4] = { 
 	sf::Vector2f(50,50), 
-	sf::Vector2f(TILESIZE*(N_TILES_WIDTH-1) +TILESIZE/2,0),
+	sf::Vector2f(TILESIZE*(N_TILES_WIDTH-1) +TILESIZE/2,50),
 	sf::Vector2f(50,TILESIZE*(N_TILES_HEIGHT - 1) + TILESIZE / 2),
 	sf::Vector2f(TILESIZE*(N_TILES_WIDTH - 1) + TILESIZE / 2,
 		TILESIZE*(N_TILES_HEIGHT - 1) + TILESIZE / 2)
