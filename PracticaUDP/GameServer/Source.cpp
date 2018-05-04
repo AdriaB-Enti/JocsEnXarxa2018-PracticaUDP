@@ -50,6 +50,7 @@ sf::Clock aknowledgeClock;
 sf::Uint32 idPacket = 0;
 sf::Uint16 idBomb = 0;
 std::vector<bomb> bombs;
+bool gameFinished = false;
 
 //Fw declarations
 bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer* &playerFound);
@@ -291,6 +292,8 @@ int main()
 		//Send unconfirmed packets if no aknowledge was recieved
 		if (aknowledgeClock.getElapsedTime().asMilliseconds() >= RESEND_TIME_MS)			//TODO: POSAR A DALT, ABANS DE TOT?
 		{
+			//contar jugadors vius
+			short aliveCount = 0;
 			auto aPlayer = players.begin();
 			while ( aPlayer != players.end()) {
 				//for (auto &aPlayer : players) {
@@ -308,6 +311,8 @@ int main()
 				}
 				else
 				{
+					if (aPlayer->isAlive)
+						aliveCount++;
 					//Iterar el map i fer send
 					for (auto it : aPlayer->unconfirmedPackets)
 					{
@@ -320,6 +325,28 @@ int main()
 				}
 			}
 			aknowledgeClock.restart();
+
+			if (aliveCount == 1 && !gameFinished)	//Game ends because there is only one player alive---------------------MIRAR  DE QUE NOMÉS S'EXECUTI QUAN LA PARTIDA ESTAVA EN MARXA. O QUE NO S'HAGIN MORT TOTS ELS JUGADORS
+			{
+				gameFinished = true;
+				for (auto &winner : players) {//Search winner
+					if (winner.isAlive)
+					{
+						sf::Uint8 winnerId = (sf::Uint8) winner.id;
+
+						sf::Packet winPack;
+						winPack << (sf::Uint8)Cabeceras::GAME_FINISHED;
+						winPack << idPacket;
+						winPack << winnerId;
+
+						winner.unconfirmedPackets[idPacket] = winPack;
+						sendAll(idPacket, winPack);
+
+						idPacket++;
+						break;
+					}
+				}
+			}
 		}
 
 

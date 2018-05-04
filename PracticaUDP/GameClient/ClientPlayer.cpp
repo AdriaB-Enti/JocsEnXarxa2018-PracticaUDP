@@ -40,7 +40,7 @@ void ClientPlayer::prepareInterpolation(sf::Vector2f finalPos)
 		characterSprite.scale(-1, 1);	//rotate character
 	}
 
-	const int STEP_COUNT = 5;
+	const int STEP_COUNT = 4;
 	sf::Vector2f step = (finalPos - position) / (float)STEP_COUNT;		//Direction with distance moved at each step to reach finalPos
 	for (int i = 1; i <= STEP_COUNT; i++)
 	{

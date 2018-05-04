@@ -181,7 +181,7 @@ int main()
 				window.close();
 			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Escape))			//Detectar eventos de teclado
 				window.close();
-			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Space) && myPlayer.isAlive) {		//Bombas
+			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Space) && myPlayer.isAlive && !gameFinished) {		//Bombas
 				sf::Packet bombPack;
 				bombPack << (sf::Uint8)Cabeceras::NEW_BOMB;
 				bombPack << (sf::Uint32)idPack;
@@ -526,9 +526,19 @@ void recieveFromServer()
 			break;
 			case GAME_FINISHED:
 			{
-				gameResult = sf::Text("GAME OVER", font, 30);
-				gameResult.setPosition(100, 200);
+				std::cout << "Game finished!!!\n";
+				sf::Uint32 finishIdPacket;
+				sf::Uint8 winnerId;
+
+				serverPacket >> finishIdPacket;
+				serverPacket >> winnerId;
+
+				std::string endMessage = (unsigned short)winnerId == myID ? "YOU WON!!" : "GAME OVER";
+				gameResult = sf::Text(endMessage, font, 70);
+				gameResult.setFillColor(sf::Color::Red);
+				gameResult.setPosition(275, 60);
 				gameFinished = true;
+				sendPacket(akPacket(finishIdPacket));
 			}
 			break;
 			default:
