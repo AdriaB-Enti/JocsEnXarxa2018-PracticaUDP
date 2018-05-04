@@ -42,6 +42,7 @@ std::map<sf::Uint32, sf::Packet> unconfirmedPackets;
 sf::Clock unconfirmedTimer;
 std::vector<bomb> bombs;
 
+GameStates state = GameStates::SEARCHING_PLAYERS;
 bool gameFinished = false;
 sf::Text gameResult;
 
@@ -164,6 +165,11 @@ int main()
 	gameClock.restart();
 	acumMoveTime.restart();
 	unconfirmedTimer.restart();
+
+	gameResult = sf::Text("Searching players...", font, 50);
+	gameResult.setFillColor(sf::Color::Black);
+	gameResult.setPosition(120, 60);
+
 	while (window.isOpen())
 	{
 		deltaSeconds = gameClock.restart();
@@ -181,7 +187,7 @@ int main()
 				window.close();
 			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Escape))			//Detectar eventos de teclado
 				window.close();
-			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Space) && myPlayer.isAlive && !gameFinished) {		//Bombas
+			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Space) && myPlayer.isAlive && !gameFinished && state==GameStates::PLAYING) {		//Bombas
 				sf::Packet bombPack;
 				bombPack << (sf::Uint8)Cabeceras::NEW_BOMB;
 				bombPack << (sf::Uint32)idPack;
@@ -208,7 +214,7 @@ int main()
 		}
 
 		//Character movement controls. Detect input only if window has focus
-		if (window.hasFocus() && myPlayer.isAlive)
+		if (window.hasFocus() && myPlayer.isAlive && state==GameStates::PLAYING)
 		{
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
 				movement_x -= deltaTime;
@@ -244,7 +250,7 @@ int main()
 			window.draw(aBomb.sprite);
 		}
 
-		if (gameFinished || !myPlayer.isAlive)
+		if (gameFinished || !myPlayer.isAlive || state == GameStates::SEARCHING_PLAYERS)
 		{
 			window.draw(gameResult);
 		}
@@ -367,6 +373,15 @@ void recieveFromServer()
 				akPacket << (sf::Uint8) Cabeceras::ACKNOWLEDGE;
 				akPacket << idPacket;
 				sendPacket(akPacket, 0);
+			}
+			break;
+			case MATCH_START:
+			{
+				sf::Uint32 idPacket;
+				serverPacket >> idPacket;
+
+				sendPacket(akPacket(idPacket));
+				state = GameStates::PLAYING;
 			}
 			break;
 			case PING:

@@ -51,6 +51,7 @@ sf::Uint32 idPacket = 0;
 sf::Uint16 idBomb = 0;
 std::vector<bomb> bombs;
 bool gameFinished = false;
+GameStates state = GameStates::SEARCHING_PLAYERS;
 
 //Fw declarations
 bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer* &playerFound);
@@ -162,8 +163,19 @@ int main()
 							}
 						}
 					}
-
 					totalPlayers++;
+
+					if (totalPlayers == MAXPLAYERS)	//Game started
+					{
+						std::cout << "Game started!\n";
+						state = GameStates::PLAYING;
+						sf::Packet startPack;
+						startPack << (sf::Uint8) Cabeceras::MATCH_START;
+						startPack << (sf::Uint32) idPacket;
+						sendAll(idPacket, startPack);
+
+						idPacket++;
+					}
 				}
 				else
 				{
@@ -198,34 +210,37 @@ int main()
 				break;
 			case ACUM_MOVE:
 			{
-				sf::Uint32 acumIdPacket;
-				float movement_x, movement_y;
-				pack >> acumIdPacket;
-				pack >> movement_x;
-				pack >> movement_y;
-				//std::cout << "movement ";
-				serverPlayer* akPlayer = nullptr;
-				if (isPlayerSaved(clientIp, clientPort, akPlayer)) {
-					if (akPlayer->isAlive) {
-						//std::cout << "from player " << akPlayer->id << " with x:" << movement_x << " y: " << movement_y << std::endl;
-						sf::Vector2f finalPos = akPlayer->position + CHARACTER_SPEED*sf::Vector2f(movement_x, movement_y);
-						if (finalPos.x < 0 || finalPos.x > TILESIZE*N_TILES_WIDTH ||
-							finalPos.y < 0 || finalPos.y > TILESIZE*N_TILES_HEIGHT)
-						{
-							//std::cout << "Wrong movement!!\n";
-							finalPos = akPlayer->position;
-						}
+				if (state == GameStates::PLAYING)
+				{
+					sf::Uint32 acumIdPacket;
+					float movement_x, movement_y;
+					pack >> acumIdPacket;
+					pack >> movement_x;
+					pack >> movement_y;
+					//std::cout << "movement ";
+					serverPlayer* akPlayer = nullptr;
+					if (isPlayerSaved(clientIp, clientPort, akPlayer)) {
+						if (akPlayer->isAlive) {
+							//std::cout << "from player " << akPlayer->id << " with x:" << movement_x << " y: " << movement_y << std::endl;
+							sf::Vector2f finalPos = akPlayer->position + CHARACTER_SPEED*sf::Vector2f(movement_x, movement_y);
+							if (finalPos.x < 0 || finalPos.x > TILESIZE*N_TILES_WIDTH ||
+								finalPos.y < 0 || finalPos.y > TILESIZE*N_TILES_HEIGHT)
+							{
+								//std::cout << "Wrong movement!!\n";
+								finalPos = akPlayer->position;
+							}
 
-						akPlayer->position = finalPos;
-						sf::Packet ok_movePack;
-						ok_movePack << (sf::Uint8) Cabeceras::OK_POSITION;
-						ok_movePack << (sf::Uint32) acumIdPacket;
-						ok_movePack << (sf::Uint8) akPlayer->id;
-						ok_movePack << (float) finalPos.x;
-						ok_movePack << (float) finalPos.y;
+							akPlayer->position = finalPos;
+							sf::Packet ok_movePack;
+							ok_movePack << (sf::Uint8) Cabeceras::OK_POSITION;
+							ok_movePack << (sf::Uint32) acumIdPacket;
+							ok_movePack << (sf::Uint8) akPlayer->id;
+							ok_movePack << (float) finalPos.x;
+							ok_movePack << (float) finalPos.y;
 					
-						for (auto &aPlayer : players) {	//send to all
-							sendPacket(ok_movePack, aPlayer.ip, aPlayer.port, 0);
+							for (auto &aPlayer : players) {	//send to all
+								sendPacket(ok_movePack, aPlayer.ip, aPlayer.port, 0);
+							}
 						}
 					}
 
@@ -234,35 +249,38 @@ int main()
 				break;
 			case NEW_BOMB:
 			{
-				sf::Uint32 bombIdPacket;
-				pack >> bombIdPacket;
-				//std::cout << "movement ";
-				serverPlayer* bombPlayer = nullptr;
-				if (isPlayerSaved(clientIp, clientPort, bombPlayer)) {
-					if (bombPlayer->isAlive) {
-						bomb newBomb;
-						newBomb.bombId = idBomb++;
-						sf::Vector2f bombPos = sf::Vector2f(std::truncf(bombPlayer->position.x / TILESIZE)*TILESIZE,
-															std::truncf(bombPlayer->position.y / TILESIZE)*TILESIZE);
-						newBomb.position = bombPos;
-						newBomb.lifeTime.restart();
-						bombs.push_back(newBomb);
+				if (state == GameStates::PLAYING)
+				{
+					sf::Uint32 bombIdPacket;
+					pack >> bombIdPacket;
+					//std::cout << "movement ";
+					serverPlayer* bombPlayer = nullptr;
+					if (isPlayerSaved(clientIp, clientPort, bombPlayer)) {
+						if (bombPlayer->isAlive) {
+							bomb newBomb;
+							newBomb.bombId = idBomb++;
+							sf::Vector2f bombPos = sf::Vector2f(std::truncf(bombPlayer->position.x / TILESIZE)*TILESIZE,
+																std::truncf(bombPlayer->position.y / TILESIZE)*TILESIZE);
+							newBomb.position = bombPos;
+							newBomb.lifeTime.restart();
+							bombs.push_back(newBomb);
 
-						//Send aknowledge to the bomb creator
-						sf::Packet akBomb;
-						akBomb << (sf::Uint8)Cabeceras::ACKNOWLEDGE;
-						akBomb << bombIdPacket;
-						sendPacket(akBomb, bombPlayer->ip, bombPlayer->port);
+							//Send aknowledge to the bomb creator
+							sf::Packet akBomb;
+							akBomb << (sf::Uint8)Cabeceras::ACKNOWLEDGE;
+							akBomb << bombIdPacket;
+							sendPacket(akBomb, bombPlayer->ip, bombPlayer->port);
 
-						//Send the bomb to all players
-						sf::Packet newBombPack;
-						newBombPack << (sf::Uint8)Cabeceras::NEW_BOMB;
-						newBombPack << idPacket;
-						newBombPack << newBomb.bombId;
-						newBombPack << newBomb.position.x;
-						newBombPack << newBomb.position.y;
-						sendAll(idPacket,newBombPack,0);
-						idPacket++;
+							//Send the bomb to all players
+							sf::Packet newBombPack;
+							newBombPack << (sf::Uint8)Cabeceras::NEW_BOMB;
+							newBombPack << idPacket;
+							newBombPack << newBomb.bombId;
+							newBombPack << newBomb.position.x;
+							newBombPack << newBomb.position.y;
+							sendAll(idPacket,newBombPack,0);
+							idPacket++;
+						}
 					}
 				}
 
@@ -326,7 +344,7 @@ int main()
 			}
 			aknowledgeClock.restart();
 
-			if (aliveCount == 1 && !gameFinished)	//Game ends because there is only one player alive---------------------MIRAR  DE QUE NOMÉS S'EXECUTI QUAN LA PARTIDA ESTAVA EN MARXA. O QUE NO S'HAGIN MORT TOTS ELS JUGADORS
+			if (aliveCount == 1 && state == GameStates::PLAYING && !gameFinished)	//Game ends because there is only one player alive---------------------MIRAR  DE QUE NOMÉS S'EXECUTI QUAN LA PARTIDA ESTAVA EN MARXA. O QUE NO S'HAGIN MORT TOTS ELS JUGADORS
 			{
 				gameFinished = true;
 				for (auto &winner : players) {//Search winner

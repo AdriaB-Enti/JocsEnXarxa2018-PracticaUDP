@@ -3,7 +3,7 @@
 //Server
 #define IPSERVER "127.0.0.1"
 #define PORTSERVER 50000
-#define MAXPLAYERS 2
+#define MAXPLAYERS 4
 
 //Game World
 #define TILESIZE 100
@@ -30,3 +30,8 @@ enum Cabeceras
 	GAME_FINISHED
 };
 
+enum GameStates {
+	SEARCHING_PLAYERS,
+	PLAYING,
+	FINISHED
+};
