@@ -171,6 +171,8 @@ int main()
 
 		recieveFromServer();
 		//sendInputMovement();
+
+
 		
 		sf::Event event;
 		while (window.pollEvent(event))	//TODO: esborrar o netejar/organitzar
@@ -229,8 +231,9 @@ int main()
 		//Draw map and players
 		window.clear();
 		window.draw(mapShape);
-		for each (ClientPlayer cplayer in players)
+		for (ClientPlayer &cplayer : players)
 		{
+			cplayer.moveStep();
 			window.draw(cplayer.characterSprite);
 			window.draw(cplayer.nameText);
 		}
@@ -435,12 +438,13 @@ void recieveFromServer()
 						if (aPlayer.id == (unsigned short)idPlayerMoved)
 						{
 							//std::cout << "dreta: " << (newPosition.x - aPlayer.position.x > 0);
-							aPlayer.moveTo(newPosition);
+							aPlayer.prepareInterpolation(newPosition);
+							//aPlayer.moveTo(newPosition);
 						}
 					}
 
 				}
-			} //NEW_BOMB
+			}
 				break;
 			case NEW_BOMB:
 			{

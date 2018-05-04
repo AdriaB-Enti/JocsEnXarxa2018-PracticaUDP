@@ -16,10 +16,6 @@ ClientPlayer::ClientPlayer(std::string _name, sf::Vector2f _position, unsigned s
 
 void ClientPlayer::moveTo(sf::Vector2f newPosition)
 {
-	if (((newPosition.x - position.x) > 0 && characterSprite.getScale().x < 0) || ((newPosition.x - position.x) < 0 && characterSprite.getScale().x > 0))
-	{
-		characterSprite.scale(-1, 1);	//rotate character
-	}
 	position = newPosition;
 	characterSprite.setPosition(newPosition.x, newPosition.y);
 	nameText.setPosition(newPosition.x+offSetTextX, newPosition.y-offSetTextY);
@@ -35,4 +31,27 @@ void ClientPlayer::translate(sf::Vector2f displacement)
 	position += displacement;
 	characterSprite.move(displacement);
 	nameText.move(displacement);
+}
+
+void ClientPlayer::prepareInterpolation(sf::Vector2f finalPos)
+{
+	if (((finalPos.x - position.x) > 0 && characterSprite.getScale().x < 0) || ((finalPos.x - position.x) < 0 && characterSprite.getScale().x > 0))
+	{
+		characterSprite.scale(-1, 1);	//rotate character
+	}
+
+	const int STEP_COUNT = 5;
+	sf::Vector2f step = (finalPos - position) / (float)STEP_COUNT;		//Direction with distance moved at each step to reach finalPos
+	for (int i = 1; i <= STEP_COUNT; i++)
+	{
+		interpolationMoves.push_back(position+step*(float)i);
+	}
+}
+
+void ClientPlayer::moveStep()
+{
+	if (!interpolationMoves.empty()) {
+		moveTo(interpolationMoves.front());						//move to first interpolation pos
+		interpolationMoves.erase(interpolationMoves.begin());	//delete used interp. pos
+	}
 }
