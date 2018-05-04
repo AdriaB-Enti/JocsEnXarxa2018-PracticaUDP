@@ -8,7 +8,7 @@
 //Constants
 #define FAIL_RATE 0
 #define ACUM_MOVE_TIME 100
-
+#define RESEND_TIME 210
 //tenir un client playerInfo? amb el sprite que toqui...
 
 //Global vars
@@ -38,8 +38,9 @@ struct bomb
 	sf::Sprite sprite;
 };
 std::vector<move_packet> acum_move_packs;
+std::map<sf::Uint32, sf::Packet> unconfirmedPackets;
+sf::Clock unconfirmedTimer;
 std::vector<bomb> bombs;
-//TODO llista de packets crítics--------------------------------------------------------------
 
 //Fw declarations
 void sendPacket(sf::Packet packet, float failRate = 0);
@@ -47,7 +48,7 @@ void recieveFromServer();
 bool isPlayerAlreadySaved(unsigned short pyID);
 sf::Packet akPacket(sf::Uint32 idP) { 
 	sf::Packet p; p << (sf::Uint8) Cabeceras::ACKNOWLEDGE; p << idP;
-	std::cout << "package AK " << Cabeceras::ACKNOWLEDGE << std::endl;
+	std::cout << "enviant package AK " << std::endl;
 	return p; }
 
 bool inline isOficialServer(sf::IpAddress ip, unsigned short port) { return (ip.toString()==std::string(IPSERVER))&&(port==PORTSERVER);}
@@ -162,6 +163,7 @@ int main()
 
 	gameClock.restart();
 	acumMoveTime.restart();
+	unconfirmedTimer.restart();
 	while (window.isOpen())
 	{
 		deltaSeconds = gameClock.restart();
@@ -179,8 +181,9 @@ int main()
 				window.close();
 			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Space) && myPlayer.isAlive) {		//Bombas
 				sf::Packet bombPack;
-				bombPack << (sf::Uint8)Cabeceras::NEW_BOMB;		//TODO: añadir a paquetes criticos
+				bombPack << (sf::Uint8)Cabeceras::NEW_BOMB;
 				bombPack << (sf::Uint32)idPack;
+				unconfirmedPackets[idPack] = bombPack;
 				sendPacket(bombPack, 0);
 				idPack++;
 			}
@@ -202,7 +205,7 @@ int main()
 			}
 		}
 
-		//detect input only if window has focus
+		//Character movement controls. Detect input only if window has focus
 		if (window.hasFocus() && myPlayer.isAlive)
 		{
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
@@ -266,7 +269,11 @@ int main()
 			acumMoveTime.restart();
 		}
 
-
+		if (unconfirmedTimer.getElapsedTime().asMilliseconds() > RESEND_TIME) {
+			for (auto unconfirmed : unconfirmedPackets) {
+				sendPacket(unconfirmed.second);
+			}
+		}
 
 
 		window.display();
@@ -281,7 +288,7 @@ int main()
 //'failRate' has to be in range [0..1] where 0 -> Will always send, and 1-> Will never send
 void sendPacket(sf::Packet packet, float failRate) {
 	float random = (rand() % 100) / 100.f;
-
+	//failRate = 0.5f;
 	if (failRate != 0 && random < failRate)	//fails to send
 	{
 		std::cout << "A packet could not be sent\n";
@@ -307,8 +314,19 @@ void recieveFromServer()
 			switch (comando)
 			{
 			case ACKNOWLEDGE:
-				//mirar en la llista SI ESTA CREADA...........
+			{
+				std::cout << "aknowledge del server \n";
+				sf::Uint32 idPacket;
+				serverPacket >> idPacket;
+				
+				if (unconfirmedPackets.find(idPacket) != unconfirmedPackets.end()) {
+					std::cout << "tamany unconfirm abans " << unconfirmedPackets.size() << std::endl;
+					unconfirmedPackets.erase(idPacket);
+					std::cout << "tamany unconfirm despres " << unconfirmedPackets.size() << std::endl;
+				}
+
 				//TODO: fer lo de cada x segons enviar els packets no enviats
+			}
 				break;
 			case NEW_PLAYER:
 			{
@@ -320,7 +338,7 @@ void recieveFromServer()
 				sf::Vector2f newPlayerPos;
 
 				serverPacket >> idPacket;
-				serverPacket >> id8;
+				serverPacket >> id8;	//id player uint8
 				newcPlayer.id = (unsigned short) id8;
 				serverPacket >> newPlayerPos.x;
 				serverPacket >> newPlayerPos.y;
@@ -438,6 +456,7 @@ void recieveFromServer()
 				newBomb.sprite.setPosition(bombPosition);
 
 				bombs.push_back(newBomb);
+				std::cout << "rebuda bomba\n";
 
 				//send aknowledge to server
 				sendPacket(akPacket(bombIdPacket));
