@@ -42,6 +42,9 @@ std::map<sf::Uint32, sf::Packet> unconfirmedPackets;
 sf::Clock unconfirmedTimer;
 std::vector<bomb> bombs;
 
+bool gameFinished = false;
+sf::Text gameResult;
+
 //Fw declarations
 void sendPacket(sf::Packet packet, float failRate = 0);
 void recieveFromServer();
@@ -158,9 +161,6 @@ int main()
 	sf::RectangleShape mapShape(sf::Vector2f(TILESIZE*N_TILES_WIDTH, TILESIZE*N_TILES_HEIGHT));
 	mapShape.setTexture(&mapTexture);
 
-	sf::Sprite bombTest = sf::Sprite(bombTexture);
-	bombTest.setPosition(200, 200);
-
 	gameClock.restart();
 	acumMoveTime.restart();
 	unconfirmedTimer.restart();
@@ -243,7 +243,11 @@ int main()
 		{
 			window.draw(aBomb.sprite);
 		}
-		//window.draw(bombTest);
+
+		if (gameFinished || !myPlayer.isAlive)
+		{
+			window.draw(gameResult);
+		}
 
 
 		if (acumMoveTime.getElapsedTime().asMilliseconds() > ACUM_MOVE_TIME)	//Send all acumulated movement (time moving on x and y)
@@ -416,12 +420,15 @@ void recieveFromServer()
 						{
 							movePack = acum_move_packs.erase(movePack);
 						}
-						const float maxDiff = 0.1f;	//para evitar pequeños errores
+						const float maxDiff = 0.1f;				//avoid small errors
 						if (movePack->id == idMove) {
 							if (std::abs(movePack->finalPos.x - newPosition.x) > maxDiff || std::abs(movePack->finalPos.y - newPosition.y) > maxDiff)
 							{
 								std::cout << "DIFFERENT POS. X:" << movePack->finalPos.x <<"-" << newPosX << " Y:" << movePack->finalPos.y << "-" << newPosY << std::endl;
-								myPlayer.moveTo(newPosition);			//TODO: fer-ho dins del for, només si resulta
+								myPlayer.moveTo(newPosition);
+								
+								acum_move_packs.clear();	//delete all moves
+								break;
 							}
 							movePack = acum_move_packs.erase(movePack);
 							//esborrar la resta de paquets si?--------------------------------------
@@ -456,14 +463,72 @@ void recieveFromServer()
 				serverPacket >> newBomb.id;
 				serverPacket >> bombPosition.x;
 				serverPacket >> bombPosition.y;
+
 				newBomb.sprite = sf::Sprite(bombTexture);
 				newBomb.sprite.setPosition(bombPosition);
-
 				bombs.push_back(newBomb);
 				std::cout << "rebuda bomba\n";
 
-				//send aknowledge to server
-				sendPacket(akPacket(bombIdPacket));
+				sendPacket(akPacket(bombIdPacket));					//send aknowledge to server
+			}
+			break;
+			case BOMB_EXPLOSION:
+			{
+				sf::Uint32 explosionIdPacket;
+				sf::Uint16 bombId;
+
+				serverPacket >> explosionIdPacket;
+				serverPacket >> bombId;
+
+				//Delete the exploding bomb
+				for (auto aBomb = bombs.begin(); aBomb != bombs.end(); ) {
+					if (aBomb->id == bombId)
+					{
+						aBomb = bombs.erase(aBomb);	//Canviar el sprite?
+					}
+					else {
+						aBomb++;
+					}
+				}
+
+				sendPacket(akPacket(explosionIdPacket));
+				//TODO: afegir sprite explosió d'alguna manera
+			}
+			break;
+			case PLAYER_DEAD:
+			{
+				sf::Uint32 deadIdPacket;
+				sf::Uint8 deadId;
+
+				serverPacket >> deadIdPacket;
+				serverPacket >> deadId;
+				if ((unsigned short)deadId == myID)
+				{
+					myPlayer.isAlive = false;
+					myPlayer.characterSprite.setTexture(characterDead);
+					gameResult = sf::Text("YOU DIED", font, 70);
+					gameResult.setFillColor(sf::Color::Red);
+					gameResult.setPosition(275, 60);
+				}
+				else
+				{
+					for (auto &aPlayer : players) {
+						if (aPlayer.id == (unsigned short)deadId)
+						{
+							aPlayer.isAlive = false;
+							aPlayer.characterSprite.setTexture(characterDead);
+						}
+					}
+				}
+
+				sendPacket(akPacket(deadIdPacket));					//send aknowledge to server
+			}
+			break;
+			case GAME_FINISHED:
+			{
+				gameResult = sf::Text("GAME OVER", font, 30);
+				gameResult.setPosition(100, 200);
+				gameFinished = true;
 			}
 			break;
 			default:

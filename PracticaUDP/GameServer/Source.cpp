@@ -59,6 +59,8 @@ void sendAll(sf::Uint32 idPack, sf::Packet packet, float failRate = 0);
 void sendAllExcept(sf::Uint32 idPack, sf::Packet packet, unsigned short idClientExcluded, float failRate = 0);
 sf::Packet pingPack() { sf::Packet p; p << (sf::Uint8)Cabeceras::PING; p << idPacket++; return p; }
 sf::Packet disconnPack(unsigned short idPlayer) { sf::Packet p; p << (sf::Uint8)Cabeceras::DISCONNECTED; p << idPacket; p << (sf::Uint8)idPlayer; return p; }
+sf::Packet explosionPack(sf::Uint16 bombId) { sf::Packet p; p << (sf::Uint8)Cabeceras::BOMB_EXPLOSION; p << idPacket; p << (sf::Uint16)bombId; return p; }
+sf::Packet pyDeadPack(sf::Uint8 idDeadPy) { sf::Packet p; p << (sf::Uint8)Cabeceras::PLAYER_DEAD; p << idPacket; p << (sf::Uint8)idDeadPy; return p; }
 int main()
 {
 	//Reset random seed
@@ -77,6 +79,28 @@ int main()
 		sf::Packet pack;
 		sf::UdpSocket::Status status = socket.receive(pack, clientIp, clientPort);
 		
+		//Check if any bomb has exploded
+		for (auto aBomb = bombs.begin(); aBomb != bombs.end();) {
+			if (aBomb->lifeTime.getElapsedTime().asMilliseconds() > BOMB_TIME)
+			{
+				sendAll(idPacket, explosionPack(aBomb->bombId));	//Send explosion to everyone with bomb id
+				for (auto &aPlayer : players) {						//Check if any player has died
+					if ((aPlayer.position.x > aBomb->position.x && aPlayer.position.x < (aBomb->position.x+TILESIZE) ||
+						aPlayer.position.y > aBomb->position.y && aPlayer.position.y < (aBomb->position.y + TILESIZE)) &&
+						aPlayer.isAlive)
+					{
+						aPlayer.isAlive = false;
+						sendAll(idPacket, pyDeadPack((sf::Uint8)aPlayer.id));		//Send the dead player to all
+					}
+				}
+				idPacket++;
+				aBomb = bombs.erase(aBomb);							//Delete the bomb that exploded
+			}
+			else {
+				aBomb++;
+			}
+		}
+
 		switch (status)
 		{
 		case sf::Socket::Done:
