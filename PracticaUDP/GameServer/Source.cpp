@@ -28,12 +28,18 @@ serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::str
 //Constants
 #define MAX_PING_MS 3000
 #define RESEND_TIME_MS 200
+#define BOMB_TIME 1500
 sf::Vector2f startPositions[4] = { 
 	sf::Vector2f(50,50), 
 	sf::Vector2f(TILESIZE*(N_TILES_WIDTH-1) +TILESIZE/2,50),
 	sf::Vector2f(50,TILESIZE*(N_TILES_HEIGHT - 1) + TILESIZE / 2),
 	sf::Vector2f(TILESIZE*(N_TILES_WIDTH - 1) + TILESIZE / 2,
 		TILESIZE*(N_TILES_HEIGHT - 1) + TILESIZE / 2)
+};
+struct bomb {
+	sf::Uint16 bombId;
+	sf::Vector2f position;
+	sf::Clock lifeTime;
 };
 
 //Global vars
@@ -42,11 +48,14 @@ unsigned short totalPlayers = 0;
 sf::UdpSocket socket;
 sf::Clock aknowledgeClock;
 sf::Uint32 idPacket = 0;
+sf::Uint16 idBomb = 0;
+std::vector<bomb> bombs;
 
 //Fw declarations
 bool isPlayerSaved(sf::IpAddress ip, unsigned short port, serverPlayer* &playerFound);
 bool checkMove(int x, int y);
 void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portClient, float failRate = 0);
+void sendAll(sf::Uint32 idPack, sf::Packet packet, float failRate = 0);
 void sendAllExcept(sf::Uint32 idPack, sf::Packet packet, unsigned short idClientExcluded, float failRate = 0);
 sf::Packet pingPack() { sf::Packet p; p << (sf::Uint8)Cabeceras::PING; p << idPacket++; return p; }
 sf::Packet disconnPack(unsigned short idPlayer) { sf::Packet p; p << (sf::Uint8)Cabeceras::DISCONNECTED; p << idPacket; p << (sf::Uint8)idPlayer; return p; }
@@ -172,30 +181,68 @@ int main()
 				//std::cout << "movement ";
 				serverPlayer* akPlayer = nullptr;
 				if (isPlayerSaved(clientIp, clientPort, akPlayer)) {
-					//std::cout << "from player " << akPlayer->id << " with x:" << movement_x << " y: " << movement_y << std::endl;
-					sf::Vector2f finalPos = akPlayer->position + CHARACTER_SPEED*sf::Vector2f(movement_x, movement_y);
-					if (finalPos.x < 0 || finalPos.x > TILESIZE*N_TILES_WIDTH ||
-						finalPos.y < 0 || finalPos.y > TILESIZE*N_TILES_HEIGHT)
-					{
-						//std::cout << "Wrong movement!!\n";
-						finalPos = akPlayer->position;
-					}
+					if (akPlayer->isAlive) {
+						//std::cout << "from player " << akPlayer->id << " with x:" << movement_x << " y: " << movement_y << std::endl;
+						sf::Vector2f finalPos = akPlayer->position + CHARACTER_SPEED*sf::Vector2f(movement_x, movement_y);
+						if (finalPos.x < 0 || finalPos.x > TILESIZE*N_TILES_WIDTH ||
+							finalPos.y < 0 || finalPos.y > TILESIZE*N_TILES_HEIGHT)
+						{
+							//std::cout << "Wrong movement!!\n";
+							finalPos = akPlayer->position;
+						}
 
-					akPlayer->position = finalPos;
-					sf::Packet ok_movePack;
-					ok_movePack << (sf::Uint8) Cabeceras::OK_POSITION;
-					ok_movePack << (sf::Uint32) acumIdPacket;
-					ok_movePack << (sf::Uint8) akPlayer->id;
-					ok_movePack << (float) finalPos.x;
-					ok_movePack << (float) finalPos.y;
+						akPlayer->position = finalPos;
+						sf::Packet ok_movePack;
+						ok_movePack << (sf::Uint8) Cabeceras::OK_POSITION;
+						ok_movePack << (sf::Uint32) acumIdPacket;
+						ok_movePack << (sf::Uint8) akPlayer->id;
+						ok_movePack << (float) finalPos.x;
+						ok_movePack << (float) finalPos.y;
 					
-					for (auto &aPlayer : players) {	//send to all
-						sendPacket(ok_movePack, aPlayer.ip, aPlayer.port, 0);
+						for (auto &aPlayer : players) {	//send to all
+							sendPacket(ok_movePack, aPlayer.ip, aPlayer.port, 0);
+						}
 					}
 
 				}
 			}
 				break;
+			case NEW_BOMB:
+			{
+				sf::Uint32 bombIdPacket;
+				pack >> bombIdPacket;
+				//std::cout << "movement ";
+				serverPlayer* bombPlayer = nullptr;
+				if (isPlayerSaved(clientIp, clientPort, bombPlayer)) {
+					if (bombPlayer->isAlive) {
+						bomb newBomb;
+						newBomb.bombId = idBomb++;
+						sf::Vector2f bombPos = sf::Vector2f(std::truncf(bombPlayer->position.x / TILESIZE)*TILESIZE,
+															std::truncf(bombPlayer->position.y / TILESIZE)*TILESIZE);
+						newBomb.position = bombPos;
+						newBomb.lifeTime.restart();
+						bombs.push_back(newBomb);
+
+						//Send aknowledge to the bomb creator
+						sf::Packet akBomb;
+						akBomb << (sf::Uint8)Cabeceras::ACKNOWLEDGE;
+						akBomb << bombIdPacket;
+						sendPacket(akBomb, bombPlayer->ip, bombPlayer->port);
+
+						//Send the bomb to all players
+						sf::Packet newBombPack;
+						newBombPack << (sf::Uint8)Cabeceras::NEW_BOMB;
+						newBombPack << idPacket;
+						newBombPack << newBomb.bombId;
+						newBombPack << newBomb.position.x;
+						newBombPack << newBomb.position.y;
+						sendAll(idPacket,newBombPack,0);
+						idPacket++;
+					}
+				}
+
+			}
+			break;
 			default:
 				break;
 			}
@@ -292,6 +339,16 @@ void sendPacket(sf::Packet packet, sf::IpAddress ipClient, unsigned short portCl
 	}
 	else {
 		socket.send(packet, ipClient, portClient);
+	}
+}
+
+//Sends to everyone and saves the critical packages
+void sendAll(sf::Uint32 idPack, sf::Packet packet, float failRate) {
+	std::cout << "sending package to all\n";
+	for (auto &aPlayer : players) {
+		std::cout << "sending to " << aPlayer.id << "\n";
+		aPlayer.unconfirmedPackets[idPack] = packet;
+		sendPacket(packet, aPlayer.ip, aPlayer.port, failRate);
 	}
 }
 

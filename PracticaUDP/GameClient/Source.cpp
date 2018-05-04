@@ -18,23 +18,28 @@ std::vector<ClientPlayer> players;
 sf::Clock gameClock, acumMoveTime;
 sf::Time deltaSeconds;
 sf::UdpSocket socket;
-sf::Texture mapTexture, characterTexture, bombTexture;
+sf::Texture mapTexture, characterTexture, characterDead, bombTexture;
 sf::Font font;
 float movement_x, movement_y;
 sf::Uint32 idPack = 0;
+struct critical_packet {
+	sf::Uint32 id;
+	sf::Packet pack;
+};
 struct move_packet
 {
 	sf::Uint32 id;
 	sf::Packet pack;
 	sf::Vector2f finalPos;
 };
-std::vector<move_packet> acum_move_packs;
 struct bomb
 {
-	sf::Uint8 id;
+	sf::Uint16 id;
 	sf::Sprite sprite;
 };
-//llista de packets crítics
+std::vector<move_packet> acum_move_packs;
+std::vector<bomb> bombs;
+//TODO llista de packets crítics--------------------------------------------------------------
 
 //Fw declarations
 void sendPacket(sf::Packet packet, float failRate = 0);
@@ -55,6 +60,8 @@ int main()
 		std::cout << "Error al cargar la textura del mapa!\n";
 	if (!characterTexture.loadFromFile("characterBomberman.png"))
 		std::cout << "Error al cargar la textura del personaje!\n";
+	if (!characterDead.loadFromFile("bombermanDead.png"))
+		std::cout << "Error al cargar la textura de muerte del personaje!\n";
 	if (!bombTexture.loadFromFile("bomb.png"))
 		std::cout << "Error al cargar la textura de la bomba!\n";
 	if (!font.loadFromFile("courbd.ttf"))
@@ -166,21 +173,24 @@ int main()
 		sf::Event event;
 		while (window.pollEvent(event))	//TODO: esborrar o netejar/organitzar
 		{
-			//Cerrar la ventana
-			if (event.type == sf::Event::Closed)
+			if (event.type == sf::Event::Closed)															//Cerrar la ventana
 				window.close();
-			//Detectar eventos de teclado
-			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Escape)){
+			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Escape))			//Detectar eventos de teclado
 				window.close();
+			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Space) && myPlayer.isAlive) {		//Bombas
+				sf::Packet bombPack;
+				bombPack << (sf::Uint8)Cabeceras::NEW_BOMB;		//TODO: añadir a paquetes criticos
+				bombPack << (sf::Uint32)idPack;
+				sendPacket(bombPack, 0);
+				idPack++;
 			}
-			//Detectar si estamos escribiendo algo, enviar el texto si presionamos enter, borrar la ultima letra si apretamos Backspace
-			if (event.type == sf::Event::TextEntered)
+			if (event.type == sf::Event::TextEntered)														//Detectar si estamos escribiendo algo, enviar el texto si presionamos enter, borrar la ultima letra si apretamos Backspace
 			{
 				if (event.text.unicode > 31 && event.text.unicode < 128) {
 					/*mensajeTeclado.push_back(static_cast<char>(event.text.unicode));*/
 				}
 			}
-			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Return)) {		//Si apretamos enter, se envia el mensaje que teniamos escrito - TODO: controlar que no s'envii si està buit
+			if (event.type == sf::Event::KeyPressed && (event.key.code == sf::Keyboard::Return)) {			//Si apretamos enter, se envia el mensaje que teniamos escrito - TODO: controlar que no s'envii si està buit
 				/*if (!mensajeTeclado.empty()) {
 					sendToServer(user + ": " + mensajeTeclado);
 					mensajeTeclado = "";
@@ -193,7 +203,7 @@ int main()
 		}
 
 		//detect input only if window has focus
-		if (window.hasFocus())
+		if (window.hasFocus() && myPlayer.isAlive)
 		{
 			if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left)) {
 				movement_x -= deltaTime;
@@ -223,7 +233,11 @@ int main()
 		}
 		window.draw(myPlayer.characterSprite);
 		window.draw(myPlayer.nameText);
-		window.draw(bombTest);
+		for each (bomb aBomb in bombs)
+		{
+			window.draw(aBomb.sprite);
+		}
+		//window.draw(bombTest);
 
 
 		if (acumMoveTime.getElapsedTime().asMilliseconds() > ACUM_MOVE_TIME)	//Send all acumulated movement (time moving on x and y)
@@ -293,6 +307,8 @@ void recieveFromServer()
 			switch (comando)
 			{
 			case ACKNOWLEDGE:
+				//mirar en la llista SI ESTA CREADA...........
+				//TODO: fer lo de cada x segons enviar els packets no enviats
 				break;
 			case NEW_PLAYER:
 			{
@@ -406,11 +422,29 @@ void recieveFromServer()
 					}
 
 				}
-			}
+			} //NEW_BOMB
 				break;
+			case NEW_BOMB:
+			{
+				sf::Uint32 bombIdPacket;
+				sf::Vector2f bombPosition;
+				bomb newBomb;
+
+				serverPacket >> bombIdPacket;
+				serverPacket >> newBomb.id;
+				serverPacket >> bombPosition.x;
+				serverPacket >> bombPosition.y;
+				newBomb.sprite = sf::Sprite(bombTexture);
+				newBomb.sprite.setPosition(bombPosition);
+
+				bombs.push_back(newBomb);
+
+				//send aknowledge to server
+				sendPacket(akPacket(bombIdPacket));
+			}
+			break;
 			default:
 				break;
-
 			}
 		}
 	}
