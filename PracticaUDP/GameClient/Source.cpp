@@ -18,7 +18,7 @@ std::vector<ClientPlayer> players;
 sf::Clock gameClock, acumMoveTime;
 sf::Time deltaSeconds;
 sf::UdpSocket socket;
-sf::Texture mapTexture, characterTexture;
+sf::Texture mapTexture, characterTexture, bombTexture;
 sf::Font font;
 float movement_x, movement_y;
 sf::Uint32 idPack = 0;
@@ -48,8 +48,10 @@ int main()
 	//Load textures and font
 	if (!mapTexture.loadFromFile("mapa2.png"))
 		std::cout << "Error al cargar la textura del mapa!\n";
-	if (!characterTexture.loadFromFile("personatgeTransp.png"))
+	if (!characterTexture.loadFromFile("characterBomberman.png"))
 		std::cout << "Error al cargar la textura del personaje!\n";
+	if (!bombTexture.loadFromFile("bomb.png"))
+		std::cout << "Error al cargar la textura de la bomba!\n";
 	if (!font.loadFromFile("courbd.ttf"))
 		std::cout << "Error al cargar la fuente" << std::endl;
 
@@ -104,6 +106,7 @@ int main()
 					std::cout << "Welcome, player with ID=" << myID << std::endl;
 
 					myPlayer.characterSprite = sf::Sprite(characterTexture);
+					myPlayer.characterSprite.setOrigin(50, 50);
 					myPlayer.nameText = sf::Text("player" + std::to_string(myID), font, 18);
 					myPlayer.nameText.setFillColor(sf::Color::Blue);
 					myPlayer.moveTo(myPos);
@@ -139,6 +142,9 @@ int main()
 	//Texturas, Sprites y fuentes
 	sf::RectangleShape mapShape(sf::Vector2f(TILESIZE*N_TILES_WIDTH, TILESIZE*N_TILES_HEIGHT));
 	mapShape.setTexture(&mapTexture);
+
+	sf::Sprite bombTest = sf::Sprite(bombTexture);
+	bombTest.setPosition(200, 200);
 
 	gameClock.restart();
 	acumMoveTime.restart();
@@ -210,6 +216,7 @@ int main()
 		}
 		window.draw(myPlayer.characterSprite);
 		window.draw(myPlayer.nameText);
+		window.draw(bombTest);
 
 
 		if (acumMoveTime.getElapsedTime().asMilliseconds() > ACUM_MOVE_TIME)	//Send all acumulated movement (time moving on x and y)
@@ -297,6 +304,7 @@ void recieveFromServer()
 				
 				if (!isPlayerAlreadySaved(newcPlayer.id)) { //Check if we already have that player
 					newcPlayer.characterSprite = sf::Sprite(characterTexture);
+					newcPlayer.characterSprite.setOrigin(50, 50);
 					//newcPlayer.characterSprite.setPosition(newcPlayer.position.x, newcPlayer.position.y);
 					newcPlayer.nameText = sf::Text("player" + std::to_string(newcPlayer.id), font, 18);
 					newcPlayer.nameText.setFillColor(sf::Color::Red);

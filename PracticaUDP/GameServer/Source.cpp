@@ -29,11 +29,11 @@ serverPlayer::serverPlayer(sf::IpAddress newIp, unsigned short newPort, std::str
 #define MAX_PING_MS 2500
 #define RESEND_TIME_MS 200
 sf::Vector2f startPositions[4] = { 
-	sf::Vector2f(0,0), 
-	sf::Vector2f(TILESIZE*(N_TILES_WIDTH-1),0), 
-	sf::Vector2f(0,TILESIZE*(N_TILES_HEIGHT - 1)), 
-	sf::Vector2f(TILESIZE*(N_TILES_WIDTH - 1),
-		TILESIZE*(N_TILES_HEIGHT - 1)) 
+	sf::Vector2f(50,50), 
+	sf::Vector2f(TILESIZE*(N_TILES_WIDTH-1) +TILESIZE/2,0),
+	sf::Vector2f(50,TILESIZE*(N_TILES_HEIGHT - 1) + TILESIZE / 2),
+	sf::Vector2f(TILESIZE*(N_TILES_WIDTH - 1) + TILESIZE / 2,
+		TILESIZE*(N_TILES_HEIGHT - 1) + TILESIZE / 2)
 };
 
 //Global vars
@@ -169,15 +169,15 @@ int main()
 				pack >> acumIdPacket;
 				pack >> movement_x;
 				pack >> movement_y;
-				std::cout << "movement ";
+				//std::cout << "movement ";
 				serverPlayer* akPlayer = nullptr;
 				if (isPlayerSaved(clientIp, clientPort, akPlayer)) {
-					std::cout << "from player " << akPlayer->id << " with x:" << movement_x << " y: " << movement_y << std::endl;
+					//std::cout << "from player " << akPlayer->id << " with x:" << movement_x << " y: " << movement_y << std::endl;
 					sf::Vector2f finalPos = akPlayer->position + CHARACTER_SPEED*sf::Vector2f(movement_x, movement_y);
 					if (finalPos.x < 0 || finalPos.x > TILESIZE*N_TILES_WIDTH ||
 						finalPos.y < 0 || finalPos.y > TILESIZE*N_TILES_HEIGHT)
 					{
-						std::cout << "Wrong movement!!\n";
+						//std::cout << "Wrong movement!!\n";
 						finalPos = akPlayer->position;
 					}
 
